@@ -4,7 +4,8 @@ import { Helmet } from 'react-helmet-async';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { Cat, Paged, Post, SITE, fmt, useFetch } from './lib';
-import { Card, State, Thumb } from './ui';
+import { BookmarkButton, Card, State, Thumb } from './ui';
+import { toSavedArticle, useSavedArticles } from './saved';
 
 function PageMetadata({ title, description, image, structuredData }: { title: string; description: string; image?: string; structuredData?: object }) {
   const pageUrl = typeof location === 'undefined' ? '' : location.href;
@@ -106,6 +107,20 @@ export function Blog() {
   </>;
 }
 
+export function SavedPage() {
+  const { articles, error } = useSavedArticles();
+  return <>
+    <PageMetadata title={`Saved articles | ${SITE}`} description={`Your saved ${SITE} articles.`} />
+    <section aria-labelledby="saved-heading">
+      <h1 id="saved-heading" className="h">Saved articles <span className="saved-page-count">{articles.length}</span></h1>
+      {error && <p className="state err" role="alert">{error}</p>}
+      {articles.length
+        ? <div className="grid">{articles.map(article => <Card key={article.slug} p={article} />)}</div>
+        : <p className="state">You have no saved articles yet. <Link to="/blog">Browse articles</Link>.</p>}
+    </section>
+  </>;
+}
+
 DOMPurify.addHook('afterSanitizeAttributes', n => {
   if (n.tagName === 'IFRAME' && !/^https:\/\/www\.youtube(-nocookie)?\.com\/embed\//.test(n.getAttribute('src') || '')) n.remove();
   if (n.tagName === 'A') n.setAttribute('rel', 'noopener noreferrer');
@@ -125,13 +140,15 @@ export function PostPage() {
   const { data, error, loading } = useFetch<{ post: Post; relatedPosts: Post[]; prevPost: { title: string; slug: string } | null; nextPost: { title: string; slug: string } | null }>(`/posts/${slug}`);
   const post = data?.post; const body = useMemo(() => render(post?.content || ''), [post]);
   const [progress, setProgress] = useState(0), [activeHeading, setActiveHeading] = useState(''), [speaking, setSpeaking] = useState(false), [paused, setPaused] = useState(false), [audioError, setAudioError] = useState('');
-  const pageRef = useRef<HTMLDivElement>(null), contentRef = useRef<HTMLDivElement>(null), utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const [speed, setSpeed] = useState<1 | 1.25 | 1.5>(1);
+  const pageRef = useRef<HTMLDivElement>(null), contentRef = useRef<HTMLDivElement>(null), utteranceRef = useRef<SpeechSynthesisUtterance | null>(null), speechPositionRef = useRef(0);
   const here = typeof location !== 'undefined' ? location.href : '';
   const articleText = useMemo(() => {
     const text = document.createElement('div');
     text.innerHTML = body.html;
     return text.textContent?.trim() || '';
   }, [body.html]);
+  const speechText = useMemo(() => post ? `${post.title}. ${articleText}` : '', [post?.title, articleText]);
   useEffect(() => {
     const update = () => {
       const page = pageRef.current;
@@ -204,12 +221,57 @@ export function PostPage() {
       timers.forEach(timer => window.clearTimeout(timer));
     };
   }, [body.html]);
-  useEffect(() => () => {
-    const utterance = utteranceRef.current;
-    if (utterance) { utterance.onend = null; utterance.onerror = null; }
-    window.speechSynthesis.cancel();
-    utteranceRef.current = null;
-  }, [post?._id]);
+  useEffect(() => {
+    setSpeaking(false);
+    setPaused(false);
+    setAudioError('');
+    speechPositionRef.current = 0;
+    return () => {
+      const utterance = utteranceRef.current;
+      if (utterance) {
+        utterance.onboundary = null;
+        utterance.onend = null;
+        utterance.onerror = null;
+      }
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      utteranceRef.current = null;
+    };
+  }, [slug]);
+  const speakFrom = (offset: number, rate: number) => {
+    if (!speechText) return;
+    const speech = window.speechSynthesis;
+    const previous = utteranceRef.current;
+    if (previous) {
+      previous.onboundary = null;
+      previous.onend = null;
+      previous.onerror = null;
+    }
+    const utterance = new SpeechSynthesisUtterance(speechText.slice(offset));
+    utterance.rate = rate;
+    utterance.onboundary = event => {
+      if (utteranceRef.current === utterance) speechPositionRef.current = offset + event.charIndex;
+    };
+    utterance.onend = () => {
+      if (utteranceRef.current !== utterance) return;
+      utteranceRef.current = null;
+      speechPositionRef.current = 0;
+      setSpeaking(false);
+      setPaused(false);
+    };
+    utterance.onerror = () => {
+      if (utteranceRef.current !== utterance) return;
+      utteranceRef.current = null;
+      speechPositionRef.current = 0;
+      setSpeaking(false);
+      setPaused(false);
+      setAudioError('Audio playback failed.');
+    };
+    speech.cancel();
+    utteranceRef.current = utterance;
+    speech.speak(utterance);
+    setSpeaking(true);
+    setPaused(false);
+  };
   const toggleSpeech = () => {
     const speech = window.speechSynthesis;
     setAudioError('');
@@ -218,19 +280,32 @@ export function PostPage() {
       else { speech.pause(); setPaused(true); }
       return;
     }
-    const utterance = new SpeechSynthesisUtterance(articleText);
-    utterance.onend = () => {
-      if (utteranceRef.current !== utterance) return;
-      utteranceRef.current = null; setSpeaking(false); setPaused(false);
-    };
-    utterance.onerror = () => {
-      if (utteranceRef.current !== utterance) return;
-      utteranceRef.current = null; setSpeaking(false); setPaused(false); setAudioError('Audio playback failed.');
-    };
-    utteranceRef.current = utterance;
-    speech.cancel();
-    speech.speak(utterance);
-    setSpeaking(true); setPaused(false);
+    speechPositionRef.current = 0;
+    speakFrom(0, speed);
+  };
+  const stopSpeech = () => {
+    const utterance = utteranceRef.current;
+    if (utterance) {
+      utterance.onboundary = null;
+      utterance.onend = null;
+      utterance.onerror = null;
+    }
+    window.speechSynthesis.cancel();
+    utteranceRef.current = null;
+    speechPositionRef.current = 0;
+    setSpeaking(false);
+    setPaused(false);
+    setAudioError('');
+  };
+  const cycleSpeed = () => {
+    const rates = [1, 1.25, 1.5] as const;
+    const next = rates[(rates.indexOf(speed) + 1) % rates.length];
+    setSpeed(next);
+    if (speaking) {
+      const wasPaused = paused;
+      speakFrom(speechPositionRef.current, next);
+      if (wasPaused) { window.speechSynthesis.pause(); setPaused(true); }
+    }
   };
   const speechSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
   const schemaData = post && {
@@ -257,7 +332,12 @@ export function PostPage() {
         <h1>{post.title}</h1>
         <p className="meta">By {post.authorName || post.author?.name || 'Editorial Team'} · <time dateTime={post.publishAt}>{fmt(post.publishAt)}</time>
           <span className="reading-controls"><span>{getReadingTime(post.content || '')} min read</span>
-            <button type="button" onClick={toggleSpeech} disabled={!speechSupported || !articleText}>{speaking ? paused ? 'Resume' : 'Pause' : 'Listen'}</button>
+            <span className="audio-player" role="group" aria-label="Listen to article">
+              <button type="button" onClick={toggleSpeech} disabled={!speechSupported || !speechText} aria-label={speaking && !paused ? 'Pause article audio' : 'Play article audio'}>{speaking && !paused ? 'Pause' : 'Play'}</button>
+              <button type="button" onClick={stopSpeech} disabled={!speechSupported || !speaking}>Stop</button>
+              <button type="button" onClick={cycleSpeed} disabled={!speechSupported} aria-label={`Playback speed ${speed}x; change speed`}>{speed}x</button>
+            </span>
+            <BookmarkButton article={toSavedArticle(post)} />
             <span className="sr" aria-live="polite">{audioError}</span>
           </span>
         </p>
