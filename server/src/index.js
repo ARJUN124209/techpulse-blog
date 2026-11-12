@@ -17,6 +17,7 @@ app.use(cors({
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));
+app.options('*', cors());
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' }, contentSecurityPolicy: false }));
 app.use(express.json({ limit: '1mb' }));
 app.use('/uploads', express.static(uploads, { maxAge: '7d' }));
