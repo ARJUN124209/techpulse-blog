@@ -12,11 +12,12 @@ const __dir = path.dirname(fileURLToPath(import.meta.url));
 const uploads = path.join(__dir, '../uploads'); const dist = path.join(__dir, '../../client/dist');
 
 const app = express();
-app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' }, contentSecurityPolicy: false }));
 app.use(cors({
-  origin: process.env.CLIENT_ORIGIN,
-  credentials: true
+  origin: [process.env.CLIENT_ORIGIN, 'https://techpulse-blog-ashen.vercel.app'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' }, contentSecurityPolicy: false }));
 app.use(express.json({ limit: '1mb' }));
 app.use('/uploads', express.static(uploads, { maxAge: '7d' }));
 const wrap = fn => (req, res, next) => fn(req, res, next).catch(next);
