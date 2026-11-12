@@ -6,14 +6,18 @@ import { User, Category, Post, slugify } from './models.js';
 import articleRoutes from './routes/articleRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 
-const { JWT_SECRET, MONGODB_URI = 'mongodb://127.0.0.1:27017/techblog', PORT = 5000, CLIENT_ORIGIN = 'http://localhost:5173', SITE_URL = 'http://localhost:5173' } = process.env;
+const { JWT_SECRET, MONGODB_URI = 'mongodb://127.0.0.1:27017/techblog', PORT = 5000, SITE_URL = 'http://localhost:5173' } = process.env;
 if (!JWT_SECRET || JWT_SECRET.length < 32) { console.error('Set JWT_SECRET (32+ chars) in server/.env'); process.exit(1); }
 const __dir = path.dirname(fileURLToPath(import.meta.url));
 const uploads = path.join(__dir, '../uploads'); const dist = path.join(__dir, '../../client/dist');
 
 const app = express();
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' }, contentSecurityPolicy: false }));
-app.use(cors({ origin: CLIENT_ORIGIN })); app.use(express.json({ limit: '1mb' }));
+app.use(cors({
+  origin: process.env.CLIENT_ORIGIN,
+  credentials: true
+}));
+app.use(express.json({ limit: '1mb' }));
 app.use('/uploads', express.static(uploads, { maxAge: '7d' }));
 const wrap = fn => (req, res, next) => fn(req, res, next).catch(next);
 const live = () => ({ status: 'published', publishAt: { $lte: new Date() } }); // scheduled posts appear automatically
