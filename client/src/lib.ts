@@ -3,12 +3,13 @@ export type Cat = { _id: string; name: string; slug: string };
 export type Post = { _id: string; title: string; slug: string; excerpt: string; content?: string; image?: string; category?: Cat; tags: string[]; author?: { name: string }; authorName?: string; status: string; publishAt: string; createdAt?: string; featured: boolean; views: number; seoTitle?: string; seoDescription?: string };
 export type Paged = { items: Post[]; total: number; pages: number; page: number };
 export const SITE = 'TechPulse';
+const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
 
 export async function api<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const h: Record<string, string> = {};
   if (!(opts.body instanceof FormData)) h['Content-Type'] = 'application/json';
   const t = localStorage.getItem('tok'); if (t) h.Authorization = 'Bearer ' + t;
-  const r = await fetch('/api' + path, { ...opts, headers: h });
+  const r = await fetch(API_BASE + '/api' + path, { ...opts, headers: h });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) { if (r.status === 401 && t) { localStorage.clear(); } throw new Error(d.error || 'Request failed'); }
   return d as T;

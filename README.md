@@ -14,6 +14,7 @@ npm run dev                 # site http://localhost:5173, API :5000, admin /admi
 ```
 Production: `npm run build && npm start` (Express serves `client/dist`). Set `SITE_URL` and `CLIENT_ORIGIN` to your domain.
 Set `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET` in `server/.env` to store uploaded images in Cloudinary. Local development uses disk storage when these are unset; production uploads require Cloudinary credentials.
+Set `VITE_API_URL` when building the client for a separate API host; leave it empty to use the same-origin API. `client/.env.production` configures the deployed Render API URL, while the Vite development proxy stays on `http://localhost:5000`.
 
 ## What's included
 - Public: homepage (featured, latest, trending, categories, search), listing with category/search/pagination, article page (TOC, reading time, share, related, prev/next, code/tables/YouTube).
