@@ -1,7 +1,4 @@
 User-agent: *
 Allow: /
-
-# Disallow crawling of the admin CMS
-Disallow: /admin/
-
-Sitemap: https://yourdomain.com/sitemap.xml
+Disallow: /admin
+Sitemap: https://techpulse-blog-f95t.onrender.com/api/sitemap.xml

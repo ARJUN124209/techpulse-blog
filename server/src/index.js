@@ -60,11 +60,13 @@ app.get('/api/posts/:slug', wrap(async (req, res) => {
   res.json({ post: p, prevPost: prev, nextPost: next, relatedPosts: related });
 }));
 app.get('/robots.txt', (_, res) => res.type('text').send(`User-agent: *\nDisallow: /admin\nSitemap: ${SITE_URL}/sitemap.xml\n`));
-app.get('/sitemap.xml', wrap(async (_, res) => {
+const sitemap = wrap(async (_, res) => {
   const [posts, cats] = await Promise.all([Post.find(live()).select('slug updatedAt'), Category.find()]);
   const u = (loc, d) => `<url><loc>${SITE_URL}${loc}</loc>${d ? `<lastmod>${d.toISOString()}</lastmod>` : ''}</url>`;
   res.type('xml').send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${u('/')}${u('/blog')}${cats.map(c => u('/category/' + c.slug)).join('')}${posts.map(p => u('/blog/' + p.slug, p.updatedAt)).join('')}</urlset>`);
-}));
+});
+app.get('/api/sitemap.xml', sitemap);
+app.get('/sitemap.xml', sitemap);
 
 // ---------- Auth ----------
 app.post('/api/auth/login', rateLimit({ windowMs: 15 * 60e3, max: 10, message: { error: 'Too many attempts. Try again in 15 minutes.' } }), wrap(async (req, res) => {

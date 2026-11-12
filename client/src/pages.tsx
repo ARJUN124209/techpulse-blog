@@ -126,7 +126,7 @@ export function PostPage() {
   const post = data?.post; const body = useMemo(() => render(post?.content || ''), [post]);
   const here = typeof location !== 'undefined' ? location.href : '';
   const schemaData = post && {
-    '@context': 'https://schema.org', '@type': 'Article', headline: post.seoTitle || post.title, description: post.seoDescription || post.excerpt,
+    '@context': 'https://schema.org', '@type': 'BlogPosting', headline: post.seoTitle || post.title, description: post.seoDescription || post.excerpt,
     image: post.image ? [new URL(post.image, location.origin).href] : undefined, datePublished: post.publishAt || post.createdAt,
     author: [{ '@type': 'Person', name: post.authorName || post.author?.name || 'Editorial Team' }],
     publisher: { '@type': 'Organization', name: SITE }, mainEntityOfPage: here
