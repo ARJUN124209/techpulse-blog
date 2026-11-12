@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { marked } from 'marked';
@@ -124,7 +124,89 @@ export function PostPage() {
   const { slug } = useParams();
   const { data, error, loading } = useFetch<{ post: Post; relatedPosts: Post[]; prevPost: { title: string; slug: string } | null; nextPost: { title: string; slug: string } | null }>(`/posts/${slug}`);
   const post = data?.post; const body = useMemo(() => render(post?.content || ''), [post]);
+  const [progress, setProgress] = useState(0), [speaking, setSpeaking] = useState(false), [paused, setPaused] = useState(false), [audioError, setAudioError] = useState('');
+  const contentRef = useRef<HTMLDivElement>(null), utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const here = typeof location !== 'undefined' ? location.href : '';
+  const articleText = useMemo(() => {
+    const text = document.createElement('div');
+    text.innerHTML = body.html;
+    return text.textContent?.trim() || '';
+  }, [body.html]);
+  useEffect(() => {
+    const update = () => {
+      const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+      setProgress(scrollable > 0 ? Math.min(100, Math.max(0, window.scrollY / scrollable * 100)) : 0);
+    };
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
+  }, [post?._id, body.html]);
+  useEffect(() => {
+    const container = contentRef.current;
+    if (!container) return;
+    const buttons: { button: HTMLButtonElement; click: () => void }[] = [];
+    const timers: number[] = [];
+    container.querySelectorAll('pre').forEach(pre => {
+      const button = document.createElement('button');
+      const code = pre.querySelector('code')?.textContent || pre.textContent || '';
+      button.type = 'button';
+      button.className = 'code-copy';
+      button.textContent = 'Copy code';
+      button.setAttribute('aria-label', 'Copy code block');
+      const click = async () => {
+        try {
+          await navigator.clipboard.writeText(code);
+          button.textContent = 'Copied';
+        } catch {
+          button.textContent = 'Copy failed';
+        }
+        timers.push(window.setTimeout(() => { button.textContent = 'Copy code'; }, 1800));
+      };
+      button.addEventListener('click', click);
+      pre.appendChild(button);
+      buttons.push({ button, click });
+    });
+    return () => {
+      buttons.forEach(({ button, click }) => {
+        button.removeEventListener('click', click);
+        button.remove();
+      });
+      timers.forEach(timer => window.clearTimeout(timer));
+    };
+  }, [body.html]);
+  useEffect(() => () => {
+    const utterance = utteranceRef.current;
+    if (utterance) { utterance.onend = null; utterance.onerror = null; }
+    window.speechSynthesis.cancel();
+    utteranceRef.current = null;
+  }, [post?._id]);
+  const toggleSpeech = () => {
+    const speech = window.speechSynthesis;
+    setAudioError('');
+    if (speaking) {
+      if (speech.paused) { speech.resume(); setPaused(false); }
+      else { speech.pause(); setPaused(true); }
+      return;
+    }
+    const utterance = new SpeechSynthesisUtterance(articleText);
+    utterance.onend = () => {
+      if (utteranceRef.current !== utterance) return;
+      utteranceRef.current = null; setSpeaking(false); setPaused(false);
+    };
+    utterance.onerror = () => {
+      if (utteranceRef.current !== utterance) return;
+      utteranceRef.current = null; setSpeaking(false); setPaused(false); setAudioError('Audio playback failed.');
+    };
+    utteranceRef.current = utterance;
+    speech.cancel();
+    speech.speak(utterance);
+    setSpeaking(true); setPaused(false);
+  };
+  const speechSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
   const schemaData = post && {
     '@context': 'https://schema.org', '@type': 'BlogPosting', headline: post.seoTitle || post.title, description: post.seoDescription || post.excerpt,
     image: post.image ? [new URL(post.image, location.origin).href] : undefined, datePublished: post.publishAt || post.createdAt,
@@ -141,12 +223,18 @@ export function PostPage() {
     return Math.ceil(wordCount / 200);
   };
   return <>
+    <div className="reading-progress" aria-hidden="true"><span style={{ width: `${progress}%` }} /></div>
     <PageMetadata title={`${post.seoTitle || post.title} | ${SITE}`} description={post.seoDescription || post.excerpt || ''} image={post.image} structuredData={schemaData} />
     <div className="post-page">
       <header className="post-header">
         {post.category && <Link className="tag" to={`/category/${post.category.slug}`}>{post.category.name}</Link>}
         <h1>{post.title}</h1>
-        <p className="meta">By {post.authorName || post.author?.name || 'Editorial Team'} · <time dateTime={post.publishAt}>{fmt(post.publishAt)}</time> · {getReadingTime(post.content || '')} min read</p>
+        <p className="meta">By {post.authorName || post.author?.name || 'Editorial Team'} · <time dateTime={post.publishAt}>{fmt(post.publishAt)}</time>
+          <span className="reading-controls"><span>{getReadingTime(post.content || '')} min read</span>
+            <button type="button" onClick={toggleSpeech} disabled={!speechSupported || !articleText}>{speaking ? paused ? 'Resume' : 'Pause' : 'Listen'}</button>
+            <span className="sr" aria-live="polite">{audioError}</span>
+          </span>
+        </p>
       </header>
       {post.image && <img className="post-cover" src={post.image} alt={post.title} width={1200} height={630} />}
 
@@ -169,7 +257,7 @@ export function PostPage() {
         </aside>
 
         <article className="post-content">
-          <div className="article-content prose" dangerouslySetInnerHTML={{ __html: body.html }} />
+          <div ref={contentRef} className="article-content prose" dangerouslySetInnerHTML={{ __html: body.html }} />
           <hr />
           <nav className="pn" aria-label="Previous and next articles">
             {data!.prevPost ? <Link to={`/blog/${data!.prevPost.slug}`}><small>Previous article</small><strong>{data!.prevPost.title}</strong></Link> : <span />}

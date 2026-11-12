@@ -41,8 +41,17 @@ function Dash({ user, out }: { user: User; out: () => void }) {
   useEffect(() => { load(); }, [load]);
   const run = async (fn: () => Promise<unknown>, ok: string) => { setErr(''); setMsg(''); try { await fn(); setMsg(ok); await load(); } catch (e) { setErr((e as Error).message); } };
   const state = (p: Post) => p.status === 'draft' ? 'Draft' : new Date(p.publishAt) > new Date() ? 'Scheduled' : 'Published';
+  const now = Date.now();
+  const publishedCount = posts.filter(p => p.status === 'published' && new Date(p.publishAt).getTime() <= now).length;
+  const draftsScheduledCount = posts.filter(p => p.status === 'draft' || (p.status === 'published' && new Date(p.publishAt).getTime() > now)).length;
   if (edit) return <Editor id={edit === 'new' ? null : edit} cats={cats} authors={authors} user={user} close={() => { setEdit(null); load(); }} />;
   return (<><div className="row"><h1>Posts</h1><span>Signed in as {user.name} ({user.role}) <button onClick={out}>Sign out</button></span></div>
+    <section className="admin-kpis" aria-label="Content overview">
+      <div className="admin-kpi"><span>Total posts</span><strong>{loading ? '—' : posts.length}</strong></div>
+      <div className="admin-kpi"><span>Published</span><strong>{loading ? '—' : publishedCount}</strong></div>
+      <div className="admin-kpi"><span>Drafts / Scheduled</span><strong>{loading ? '—' : draftsScheduledCount}</strong></div>
+      <div className="admin-kpi"><span>Categories</span><strong>{loading ? '—' : cats.length}</strong></div>
+    </section>
     <button className="btn" disabled={loading} onClick={() => setEdit('new')}>New post</button>
     <div aria-live="polite">{msg && <p className="state ok">{msg}</p>}{err && <p className="state err" role="alert">{err}</p>}</div>
     {loading ? <p className="state" role="status">Loading…</p> : !posts.length ? <p className="state">No posts yet. Create your first post.</p> :

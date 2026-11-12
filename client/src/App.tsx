@@ -12,12 +12,22 @@ if (ga && gaEnabled) ReactGA.initialize(ga, { gaOptions: { send_page_view: false
 function Shell({ children }: { children: React.ReactNode }) {
   const { data: cats } = useFetch<Cat[]>('/categories'); const nav = useNavigate(); const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
   useEffect(() => { setOpen(false); window.scrollTo(0, 0); }, [pathname]);
   const search = (e: FormEvent<HTMLFormElement>) => { e.preventDefault(); const q = String(new FormData(e.currentTarget).get('q') || '').trim(); if (q) nav(`/blog?q=${encodeURIComponent(q)}`); };
+  const toggleTheme = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    localStorage.setItem('theme', next);
+    setTheme(next);
+  };
   return (<>
     <a className="skip" href="#main">Skip to content</a>
     <header className="top"><div className="wrap bar">
       <Link to="/" className="logo" aria-label={`${SITE} home`}><span aria-hidden="true">▲</span> {SITE}</Link>
+      <button className="theme-toggle" type="button" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
+        {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+      </button>
       <button className="burger" aria-expanded={open} aria-controls="menu" onClick={() => setOpen(!open)}>Menu</button>
       <nav id="menu" aria-label="Main" className={open ? 'open' : ''}>
         <NavLink to="/" end>Home</NavLink><NavLink to="/blog">All articles</NavLink>
