@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-labelledby="title">
+  <title id="title">Clean architecture in React</title>
+  <defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#092d32"/><stop offset="1" stop-color="#167866"/></linearGradient><linearGradient id="panel" x2="1" y2="1"><stop stop-color="#bff8e4"/><stop offset="1" stop-color="#55cbb2"/></linearGradient></defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <g fill="none" stroke="#8ae3cd" stroke-width="4" opacity=".55"><circle cx="900" cy="315" r="205"/><circle cx="900" cy="315" r="150"/><circle cx="900" cy="315" r="95"/></g>
+  <rect x="817" y="230" width="166" height="170" rx="22" fill="url(#panel)"/>
+  <path d="M860 285h80M860 315h55M860 345h70" stroke="#155c55" stroke-width="12" stroke-linecap="round"/>
+  <circle cx="900" cy="315" r="232" fill="none" stroke="#e3fff4" stroke-width="3" stroke-dasharray="8 18"/>
+  <text x="88" y="130" fill="#9cf0d9" font-family="Arial,sans-serif" font-size="24" font-weight="700" letter-spacing="5">TECHPULSE • SOFTWARE</text>
+  <text x="88" y="475" fill="#fff" font-family="Arial,sans-serif" font-size="58" font-weight="700">Clean architecture</text>
+  <text x="88" y="545" fill="#c6f4e9" font-family="Arial,sans-serif" font-size="42">in a React codebase</text>
+</svg>

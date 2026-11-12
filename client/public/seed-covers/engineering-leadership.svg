@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-labelledby="title">
+  <title id="title">Engineering leadership in 2026</title>
+  <defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#172641"/><stop offset="1" stop-color="#375b82"/></linearGradient><linearGradient id="bar" x2="0" y2="1"><stop stop-color="#a6e2ff"/><stop offset="1" stop-color="#4ca7d2"/></linearGradient></defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <circle cx="940" cy="230" r="220" fill="#79caff" opacity=".12"/>
+  <path d="M705 445h410" stroke="#d3edff" stroke-width="5" opacity=".7"/>
+  <rect x="745" y="350" width="68" height="95" rx="8" fill="url(#bar)"/><rect x="840" y="295" width="68" height="150" rx="8" fill="url(#bar)"/><rect x="935" y="230" width="68" height="215" rx="8" fill="url(#bar)"/><rect x="1030" y="160" width="68" height="285" rx="8" fill="url(#bar)"/>
+  <path d="m750 300 110-65 115-45 150-75" fill="none" stroke="#ffe49a" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="m1096 115 30 0-5 30" fill="none" stroke="#ffe49a" stroke-width="8" stroke-linecap="round"/>
+  <text x="88" y="130" fill="#b8e4ff" font-family="Arial,sans-serif" font-size="24" font-weight="700" letter-spacing="5">TECHPULSE • INDUSTRY</text>
+  <text x="88" y="475" fill="#fff" font-family="Arial,sans-serif" font-size="58" font-weight="700">Engineering leaders</text>
+  <text x="88" y="545" fill="#d5e8f7" font-family="Arial,sans-serif" font-size="42">and what 2026 brings</text>
+</svg>

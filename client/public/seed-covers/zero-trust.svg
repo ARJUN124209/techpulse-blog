@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-labelledby="title">
+  <title id="title">Zero trust security</title>
+  <defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#201336"/><stop offset="1" stop-color="#6b397d"/></linearGradient><linearGradient id="shield" x2="0" y2="1"><stop stop-color="#ffdcff"/><stop offset="1" stop-color="#bc8de4"/></linearGradient></defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <circle cx="930" cy="290" r="220" fill="#ff9ee8" opacity=".12"/>
+  <g fill="none" stroke="#e1b4f4" stroke-width="3" opacity=".45"><path d="M720 150h330v330H720z"/><path d="m720 150 330 330m0-330L720 480M885 150v330m-165-165h330"/></g>
+  <path d="M885 190 1010 235v100c0 91-51 152-125 195-74-43-125-104-125-195V235z" fill="url(#shield)"/>
+  <path d="M885 275a42 42 0 0 0-42 42v29h84v-29a42 42 0 0 0-42-42zm-14 71h28v48h-28z" fill="#57346c"/>
+  <text x="88" y="130" fill="#edc9ff" font-family="Arial,sans-serif" font-size="24" font-weight="700" letter-spacing="5">TECHPULSE • SECURITY</text>
+  <text x="88" y="475" fill="#fff" font-family="Arial,sans-serif" font-size="58" font-weight="700">Zero-trust</text>
+  <text x="88" y="545" fill="#ead7f3" font-family="Arial,sans-serif" font-size="42">security for small teams</text>
+</svg>

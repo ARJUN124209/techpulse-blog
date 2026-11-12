@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-labelledby="title">
+  <title id="title">Shipping a mobile app</title>
+  <defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#482319"/><stop offset="1" stop-color="#c05d32"/></linearGradient><linearGradient id="screen" x2="0" y2="1"><stop stop-color="#fff0d9"/><stop offset="1" stop-color="#ffc783"/></linearGradient></defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <circle cx="930" cy="300" r="220" fill="#ffc783" opacity=".14"/>
+  <rect x="820" y="102" width="190" height="426" rx="32" fill="#38251f" stroke="#ffe0b0" stroke-width="8"/>
+  <rect x="839" y="145" width="152" height="330" rx="13" fill="url(#screen)"/>
+  <rect x="862" y="183" width="106" height="75" rx="12" fill="#e87545"/>
+  <path d="M862 290h105M862 325h82M862 375h105M862 410h68" stroke="#9b5335" stroke-width="12" stroke-linecap="round"/>
+  <circle cx="915" cy="500" r="10" fill="#ffe0b0"/>
+  <text x="88" y="130" fill="#ffd7a3" font-family="Arial,sans-serif" font-size="24" font-weight="700" letter-spacing="5">TECHPULSE • MOBILE</text>
+  <text x="88" y="475" fill="#fff" font-family="Arial,sans-serif" font-size="58" font-weight="700">Ship a mobile app</text>
+  <text x="88" y="545" fill="#ffe4c5" font-family="Arial,sans-serif" font-size="42">with one codebase</text>
+</svg>

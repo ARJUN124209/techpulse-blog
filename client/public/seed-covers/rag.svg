@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-labelledby="title">
+  <title id="title">Retrieval augmented generation</title>
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#101b3d"/><stop offset="1" stop-color="#3456a8"/></linearGradient>
+    <linearGradient id="card" x2="0" y2="1"><stop stop-color="#fff"/><stop offset="1" stop-color="#dce8ff"/></linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <circle cx="950" cy="170" r="180" fill="#6ea8ff" opacity=".16"/>
+  <circle cx="190" cy="560" r="240" fill="#8b77ff" opacity=".13"/>
+  <g fill="none" stroke="#9ec4ff" stroke-width="4" opacity=".65"><path d="M690 230 830 150 1000 220 1060 370 900 440 740 390Z"/><path d="m830 150 70 290m100-220-260 170m320-20L690 230"/></g>
+  <g fill="#c7ddff"><circle cx="690" cy="230" r="14"/><circle cx="830" cy="150" r="14"/><circle cx="1000" cy="220" r="14"/><circle cx="1060" cy="370" r="14"/><circle cx="900" cy="440" r="14"/><circle cx="740" cy="390" r="14"/></g>
+  <rect x="470" y="185" width="160" height="220" rx="18" fill="url(#card)"/>
+  <path d="M505 240h90M505 275h90M505 310h65M505 345h75" stroke="#4774bf" stroke-width="12" stroke-linecap="round"/>
+  <text x="88" y="130" fill="#9ec4ff" font-family="Arial,sans-serif" font-size="24" font-weight="700" letter-spacing="5">TECHPULSE • AI</text>
+  <text x="88" y="500" fill="#fff" font-family="Arial,sans-serif" font-size="54" font-weight="700">Retrieval augmented</text>
+  <text x="88" y="565" fill="#c7d7f6" font-family="Arial,sans-serif" font-size="42">generation</text>
+</svg>

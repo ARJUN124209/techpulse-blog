@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-labelledby="title">
+  <title id="title">Choosing a cloud region</title>
+  <defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#073b54"/><stop offset="1" stop-color="#118c9e"/></linearGradient><linearGradient id="cloud" x2="0" y2="1"><stop stop-color="#efffff"/><stop offset="1" stop-color="#a9e5e9"/></linearGradient></defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <circle cx="930" cy="150" r="115" fill="#b9f4d1" opacity=".8"/>
+  <path d="M690 325c0-49 39-88 88-88 12-70 73-122 146-122 80 0 145 63 149 142 47 7 83 47 83 96 0 54-44 98-98 98H790c-55 0-100-45-100-100 0-8 0-17 0-26z" fill="url(#cloud)"/>
+  <g fill="#12869a"><circle cx="825" cy="345" r="13"/><circle cx="925" cy="310" r="13"/><circle cx="1030" cy="355" r="13"/></g>
+  <g stroke="#12869a" stroke-width="7" fill="none"><path d="m825 345 100-35 105 45"/><path d="M925 310v93"/></g>
+  <text x="88" y="130" fill="#aaf4e5" font-family="Arial,sans-serif" font-size="24" font-weight="700" letter-spacing="5">TECHPULSE • CLOUD</text>
+  <text x="88" y="475" fill="#fff" font-family="Arial,sans-serif" font-size="58" font-weight="700">Choose a cloud</text>
+  <text x="88" y="545" fill="#c3eef2" font-family="Arial,sans-serif" font-size="42">region without regrets</text>
+</svg>
