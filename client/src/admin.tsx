@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState, FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Cat, Post, api, fmt, useSeo } from './lib';
+import { renderArticleContent } from './pages';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 
@@ -27,6 +28,7 @@ function Login({ done }: { done: (u: User) => void }) {
 function Dash({ user, out }: { user: User; out: () => void }) {
   const [posts, setPosts] = useState<Post[]>([]), [cats, setCats] = useState<Cat[]>([]), [authors, setAuthors] = useState<Author[]>([]), [edit, setEdit] = useState<string | null>(null);
   const [msg, setMsg] = useState(''), [err, setErr] = useState(''), [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<'all' | 'published' | 'drafts' | 'scheduled' | 'featured'>('all'), [search, setSearch] = useState('');
   const load = useCallback(async () => {
     try {
       const [p, c, a] = await Promise.all([
@@ -40,26 +42,47 @@ function Dash({ user, out }: { user: User; out: () => void }) {
   }, [user.role]); // eslint-disable-line
   useEffect(() => { load(); }, [load]);
   const run = async (fn: () => Promise<unknown>, ok: string) => { setErr(''); setMsg(''); try { await fn(); setMsg(ok); await load(); } catch (e) { setErr((e as Error).message); } };
-  const state = (p: Post) => p.status === 'draft' ? 'Draft' : new Date(p.publishAt) > new Date() ? 'Scheduled' : 'Published';
   const now = Date.now();
-  const publishedCount = posts.filter(p => p.status === 'published' && new Date(p.publishAt).getTime() <= now).length;
-  const draftsScheduledCount = posts.filter(p => p.status === 'draft' || (p.status === 'published' && new Date(p.publishAt).getTime() > now)).length;
+  const isScheduled = (p: Post) => p.status !== 'draft' && new Date(p.publishAt).getTime() > now;
+  const state = (p: Post) => p.status === 'draft' ? 'Draft' : isScheduled(p) ? 'Scheduled' : 'Published';
+  const publishedCount = posts.filter(p => p.status === 'published' && !isScheduled(p)).length;
+  const draftsCount = posts.filter(p => p.status === 'draft').length;
+  const scheduledCount = posts.filter(isScheduled).length;
+  const query = search.trim().toLowerCase();
+  const filteredPosts = posts.filter(post => {
+    const matchesFilter = filter === 'all' || (filter === 'published' && post.status === 'published' && !isScheduled(post)) ||
+      (filter === 'drafts' && post.status === 'draft') || (filter === 'scheduled' && isScheduled(post)) ||
+      (filter === 'featured' && post.featured);
+    const searchable = [post.title, post.slug, post.excerpt, post.category?.name, ...(post.tags || [])].join(' ').toLowerCase();
+    return matchesFilter && (!query || searchable.includes(query));
+  });
   if (edit) return <Editor id={edit === 'new' ? null : edit} cats={cats} authors={authors} user={user} close={() => { setEdit(null); load(); }} />;
   return (<><div className="row"><h1>Posts</h1><span>Signed in as {user.name} ({user.role}) <button onClick={out}>Sign out</button></span></div>
     <section className="admin-kpis" aria-label="Content overview">
-      <div className="admin-kpi"><span>Total posts</span><strong>{loading ? '—' : posts.length}</strong></div>
+      <div className="admin-kpi"><span>Total articles</span><strong>{loading ? '—' : posts.length}</strong></div>
       <div className="admin-kpi"><span>Published</span><strong>{loading ? '—' : publishedCount}</strong></div>
-      <div className="admin-kpi"><span>Drafts / Scheduled</span><strong>{loading ? '—' : draftsScheduledCount}</strong></div>
-      <div className="admin-kpi"><span>Categories</span><strong>{loading ? '—' : cats.length}</strong></div>
+      <div className="admin-kpi"><span>Drafts</span><strong>{loading ? '—' : draftsCount}</strong></div>
+      <div className="admin-kpi"><span>Scheduled</span><strong>{loading ? '—' : scheduledCount}</strong></div>
+      <div className="admin-kpi"><span>Total categories</span><strong>{loading ? '—' : cats.length}</strong></div>
     </section>
     <button className="btn" disabled={loading} onClick={() => setEdit('new')}>New post</button>
     <div aria-live="polite">{msg && <p className="state ok">{msg}</p>}{err && <p className="state err" role="alert">{err}</p>}</div>
-    {loading ? <p className="state" role="status">Loading…</p> : !posts.length ? <p className="state">No posts yet. Create your first post.</p> :
+    {loading ? <p className="state" role="status">Loading…</p> : !posts.length ? <p className="state">No posts yet. Create your first post.</p> : <>
+      <section className="admin-post-tools" aria-label="Filter posts">
+        <div className="admin-filter-pills" role="group" aria-label="Post status filters">
+          {([
+            ['all', 'All'], ['published', 'Published'], ['drafts', 'Drafts'], ['scheduled', 'Scheduled'], ['featured', 'Featured']
+          ] as const).map(([value, label]) => <button key={value} type="button" className={filter === value ? 'active' : ''} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>)}
+        </div>
+        <label className="admin-post-search">Quick search<input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Title, category, tag…" /></label>
+      </section>
+      {!filteredPosts.length ? <p className="state">No posts match these filters.</p> :
       <div className="scroll"><table><thead><tr><th>Title</th><th>Status</th><th>Category</th><th>Date</th><th>Featured</th><th>Actions</th></tr></thead><tbody>
-        {posts.map(p => <tr key={p._id}><td>{p.title}</td><td>{state(p)}</td><td>{p.category?.name}</td><td>{fmt(p.publishAt)}</td>
+        {filteredPosts.map(p => <tr key={p._id}><td>{p.title}</td><td>{state(p)}</td><td>{p.category?.name}</td><td>{fmt(p.publishAt)}</td>
           <td><input type="checkbox" aria-label={`Feature ${p.title}`} checked={p.featured} onChange={e => run(() => api(`/admin/posts/${p._id}`, { method: 'PUT', body: JSON.stringify({ featured: e.target.checked }) }), 'Updated')} /></td>
           <td><button onClick={() => setEdit(p._id)}>Edit</button> <button onClick={() => run(() => api(`/admin/posts/${p._id}`, { method: 'PUT', body: JSON.stringify({ status: p.status === 'draft' ? 'published' : 'draft' }) }), p.status === 'draft' ? 'Published' : 'Moved to drafts')}>{p.status === 'draft' ? 'Publish' : 'Unpublish'}</button>
             {user.role === 'admin' && <> <button onClick={() => confirm(`Delete “${p.title}”?`) && run(() => api(`/admin/posts/${p._id}`, { method: 'DELETE' }), 'Deleted')}>Delete</button></>}</td></tr>)}</tbody></table></div>}
+    </>}
     <Cats cats={cats} admin={user.role === 'admin'} run={run} />
     {user.role === 'admin' && <Authors authors={authors} onCreated={load} />}</>);
 }
@@ -95,7 +118,43 @@ function Authors({ authors, onCreated }: { authors: Author[]; onCreated: () => P
     {err && <p className="state err" role="alert">{err}</p>}
   </section>;
 }
+
+function ArticlePreview({ draft, cats }: {
+  draft: { title: string; excerpt: string; content: string; image: string; category: string; tags: string; authorName: string; publishAt: string };
+  cats: Cat[];
+}) {
+  const body = useMemo(() => renderArticleContent(draft.content), [draft.content]);
+  const category = cats.find(cat => cat._id === draft.category);
+  const date = new Date(draft.publishAt);
+  const dateLabel = Number.isNaN(date.getTime()) ? 'Publish date not set' : fmt(date.toISOString());
+  const tags = draft.tags.split(',').map(tag => tag.trim()).filter(Boolean);
+  return <section className="admin-live-preview" aria-label="Live article preview">
+    <p className="admin-preview-label">Live preview</p>
+    <div className="post-page">
+      <header className="post-header">
+        {category && <span className="tag">{category.name}</span>}
+        <h1>{draft.title || 'Article title preview'}</h1>
+        <p className="meta">By {draft.authorName || 'Editorial Team'} · <time dateTime={draft.publishAt}>{dateLabel}</time></p>
+        {draft.excerpt && <p className="preview-excerpt">{draft.excerpt}</p>}
+        {tags.length > 0 && <p className="preview-tags">{tags.map((tag, index) => <span key={`${tag}-${index}`}>{tag}</span>)}</p>}
+      </header>
+      {draft.image && <img className="post-cover" src={draft.image} alt={draft.title || 'Article cover preview'} />}
+      <div className={`post-layout${body.toc.length ? '' : ' preview-no-toc'}`}>
+        {body.toc.length > 0 && <aside className="post-sidebar"><div className="post-sidebar-sticky">
+          <nav className="toc" aria-label="Preview table of contents"><h2>In this article</h2>
+            <ul>{body.toc.map(item => <li key={item.id} className={'l' + item.lvl}><a href={`#${item.id}`}>{item.text}</a></li>)}</ul>
+          </nav>
+        </div></aside>}
+        <article className="post-content">
+          <div className="article-content prose" dangerouslySetInnerHTML={{ __html: body.html || '<p>Article content preview will appear here.</p>' }} />
+        </article>
+      </div>
+    </div>
+  </section>;
+}
+
 function Editor({ id, cats, authors, user, close }: { id: string | null; cats: Cat[]; authors: Author[]; user: User; close: () => void }) {
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [f, setF] = useState({ title: '', slug: '', excerpt: '', content: '', image: '', category: '', tags: '', author: user.id || '', authorName: user.name, status: 'draft', publishAt: local(), featured: false, seoTitle: '', seoDescription: '' });
   const [err, setErr] = useState(''), [busy, setBusy] = useState(false), [loading, setLoading] = useState(!!id);
   const set = (k: string, v: string | boolean) => setF(s => ({ ...s, [k]: v }));
@@ -122,13 +181,21 @@ function Editor({ id, cats, authors, user, close }: { id: string | null; cats: C
   };
   if (loading) return <p className="state" role="status">Loading…</p>;
   const future = f.status === 'published' && new Date(f.publishAt) > new Date();
-  return (<form className="editor" onSubmit={save}><div className="row"><h1>{id ? 'Edit post' : 'New post'}</h1><button type="button" onClick={close}>Back to posts</button></div>
+  return (<form className={`editor admin-editor${previewOpen ? ' has-preview' : ''}`} onSubmit={save}><div className="row"><h1>{id ? 'Edit post' : 'New post'}</h1><button type="button" onClick={close}>Back to posts</button></div>
+    <div className="editor-preview-toggle" role="group" aria-label="Article editor view">
+      <button type="button" aria-pressed={!previewOpen} className={!previewOpen ? 'active' : ''} onClick={() => setPreviewOpen(false)}>Edit</button>
+      <button type="button" aria-pressed={previewOpen} className={previewOpen ? 'active' : ''} onClick={() => setPreviewOpen(true)}>Split Preview</button>
+    </div>
     <label>Title<input required maxLength={200} value={f.title} onChange={e => set('title', e.target.value)} /></label>
     <label>URL slug<input value={f.slug} maxLength={90} placeholder="Generated from the title if empty" onChange={e => set('slug', e.target.value)} /></label>
     <label>Short description<textarea rows={2} maxLength={400} value={f.excerpt} onChange={e => set('excerpt', e.target.value)} /></label>
-    <label className="article-content">Article Content
-      <ReactQuill className="article-quill" theme="snow" value={f.content} onChange={value => set('content', value)} />
-    </label>
+    <div className={`editor-preview-layout${previewOpen ? ' is-split' : ''}`}>
+      <div className="editor-writing-pane">
+        <label>Article Content</label>
+        <div className="article-content"><ReactQuill className="article-quill" theme="snow" value={f.content} onChange={value => set('content', value)} /></div>
+      </div>
+      {previewOpen && <ArticlePreview draft={f} cats={cats} />}
+    </div>
     <label>Insert image into content<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={e => up(e.target.files?.[0], url => set('content', f.content + `<p><img src="${url}" alt="Describe the image"></p>`))} /></label>
     <label>Featured image<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={e => up(e.target.files?.[0], url => set('image', url))} /></label>
     {f.image && <p><img src={f.image} alt="Featured image preview" width={160} /> <button type="button" onClick={() => set('image', '')}>Remove</button></p>}

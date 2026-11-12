@@ -126,7 +126,7 @@ DOMPurify.addHook('afterSanitizeAttributes', n => {
   if (n.tagName === 'A') n.setAttribute('rel', 'noopener noreferrer');
 });
 
-function render(md: string) {
+export function renderArticleContent(md: string) {
   const toc: { id: string; text: string; lvl: number }[] = [];
   const raw = (marked.parse(md, { async: false }) as string).replace(/<h([23])>(.*?)<\/h\1>/g, (_m, l, t) => {
     const text = t.replace(/<[^>]+>/g, ''); const id = text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -138,7 +138,7 @@ function render(md: string) {
 export function PostPage() {
   const { slug } = useParams();
   const { data, error, loading } = useFetch<{ post: Post; relatedPosts: Post[]; prevPost: { title: string; slug: string } | null; nextPost: { title: string; slug: string } | null }>(`/posts/${slug}`);
-  const post = data?.post; const body = useMemo(() => render(post?.content || ''), [post]);
+  const post = data?.post; const body = useMemo(() => renderArticleContent(post?.content || ''), [post]);
   const [progress, setProgress] = useState(0), [activeHeading, setActiveHeading] = useState(''), [speaking, setSpeaking] = useState(false), [paused, setPaused] = useState(false), [audioError, setAudioError] = useState('');
   const [speed, setSpeed] = useState<1 | 1.25 | 1.5>(1);
   const pageRef = useRef<HTMLDivElement>(null), contentRef = useRef<HTMLDivElement>(null), utteranceRef = useRef<SpeechSynthesisUtterance | null>(null), speechPositionRef = useRef(0);
