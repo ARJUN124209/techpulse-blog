@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState, FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { FormEvent, KeyboardEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Cat, Post, api, fmt, useSeo } from './lib';
 import { renderArticleContent } from './pages';
@@ -29,6 +30,7 @@ function Dash({ user, out }: { user: User; out: () => void }) {
   const [posts, setPosts] = useState<Post[]>([]), [cats, setCats] = useState<Cat[]>([]), [authors, setAuthors] = useState<Author[]>([]), [edit, setEdit] = useState<string | null>(null);
   const [msg, setMsg] = useState(''), [err, setErr] = useState(''), [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'published' | 'drafts' | 'scheduled' | 'featured'>('all'), [search, setSearch] = useState('');
+  const [now, setNow] = useState(Date.now);
   const load = useCallback(async () => {
     try {
       const [p, c, a] = await Promise.all([
@@ -41,8 +43,11 @@ function Dash({ user, out }: { user: User; out: () => void }) {
     catch (e) { setErr((e as Error).message); if (!localStorage.getItem('tok')) out(); } finally { setLoading(false); }
   }, [user.role]); // eslint-disable-line
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const run = async (fn: () => Promise<unknown>, ok: string) => { setErr(''); setMsg(''); try { await fn(); setMsg(ok); await load(); } catch (e) { setErr((e as Error).message); } };
-  const now = Date.now();
   const isScheduled = (p: Post) => p.status !== 'draft' && new Date(p.publishAt).getTime() > now;
   const state = (p: Post) => p.status === 'draft' ? 'Draft' : isScheduled(p) ? 'Scheduled' : 'Published';
   const publishedCount = posts.filter(p => p.status === 'published' && !isScheduled(p)).length;
@@ -155,6 +160,7 @@ function ArticlePreview({ draft, cats }: {
 
 function Editor({ id, cats, authors, user, close }: { id: string | null; cats: Cat[]; authors: Author[]; user: User; close: () => void }) {
   const [previewOpen, setPreviewOpen] = useState(false);
+  const editTabRef = useRef<HTMLButtonElement>(null), previewTabRef = useRef<HTMLButtonElement>(null);
   const [f, setF] = useState({ title: '', slug: '', excerpt: '', content: '', image: '', category: '', tags: '', author: user.id || '', authorName: user.name, status: 'draft', publishAt: local(), featured: false, seoTitle: '', seoDescription: '' });
   const [err, setErr] = useState(''), [busy, setBusy] = useState(false), [loading, setLoading] = useState(!!id);
   const set = (k: string, v: string | boolean) => setF(s => ({ ...s, [k]: v }));
@@ -175,43 +181,61 @@ function Editor({ id, cats, authors, user, close }: { id: string | null; cats: C
     try { cb((await api<{ url: string }>('/admin/upload', { method: 'POST', body: d })).url); } catch (e) { setErr((e as Error).message); }
   };
   const save = async (e: FormEvent) => {
-    e.preventDefault(); setBusy(true); setErr('');
-    const body = { ...f, tags: f.tags.split(',').map(t => t.trim()).filter(Boolean), publishAt: new Date(f.publishAt).toISOString() };
+    e.preventDefault(); setErr('');
+    const publishDate = new Date(f.publishAt);
+    if (!f.title.trim() || Number.isNaN(publishDate.getTime())) {
+      setPreviewOpen(false);
+      setErr(!f.title.trim() ? 'Title is required.' : 'Enter a valid publish date and time.');
+      return;
+    }
+    setBusy(true);
+    const body = { ...f, tags: f.tags.split(',').map(t => t.trim()).filter(Boolean), publishAt: publishDate.toISOString() };
     try { await api(id ? `/admin/posts/${id}` : '/admin/posts', { method: id ? 'PUT' : 'POST', body: JSON.stringify(body) }); close(); } catch (x) { setErr((x as Error).message); setBusy(false); }
+  };
+  const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    let next: boolean | undefined;
+    if (event.key === 'ArrowLeft') next = false;
+    if (event.key === 'ArrowRight') next = true;
+    if (event.key === 'Home') next = false;
+    if (event.key === 'End') next = true;
+    if (next === undefined) return;
+    event.preventDefault();
+    setPreviewOpen(next);
+    (next ? previewTabRef : editTabRef).current?.focus();
   };
   if (loading) return <p className="state" role="status">Loading…</p>;
   const future = f.status === 'published' && new Date(f.publishAt) > new Date();
-  return (<form className={`editor admin-editor${previewOpen ? ' has-preview' : ''}`} onSubmit={save}><div className="row"><h1>{id ? 'Edit post' : 'New post'}</h1><button type="button" onClick={close}>Back to posts</button></div>
-    <div className="editor-preview-toggle" role="group" aria-label="Article editor view">
-      <button type="button" aria-pressed={!previewOpen} className={!previewOpen ? 'active' : ''} onClick={() => setPreviewOpen(false)}>Edit</button>
-      <button type="button" aria-pressed={previewOpen} className={previewOpen ? 'active' : ''} onClick={() => setPreviewOpen(true)}>Split Preview</button>
+  return (<form className="editor admin-editor" noValidate onSubmit={save}><div className="row"><h1>{id ? 'Edit post' : 'New post'}</h1><button type="button" onClick={close}>Back to posts</button></div>
+    <div className="editor-tabs" role="tablist" aria-label="Post editor views">
+      <button ref={editTabRef} type="button" role="tab" id="edit-post-tab" aria-controls="edit-post-panel" aria-selected={!previewOpen} tabIndex={previewOpen ? -1 : 0} onKeyDown={onTabKeyDown} onClick={() => setPreviewOpen(false)}>Edit</button>
+      <button ref={previewTabRef} type="button" role="tab" id="preview-post-tab" aria-controls="preview-post-panel" aria-selected={previewOpen} tabIndex={previewOpen ? 0 : -1} onKeyDown={onTabKeyDown} onClick={() => setPreviewOpen(true)}>Live Preview</button>
     </div>
-    <label>Title<input required maxLength={200} value={f.title} onChange={e => set('title', e.target.value)} /></label>
-    <label>URL slug<input value={f.slug} maxLength={90} placeholder="Generated from the title if empty" onChange={e => set('slug', e.target.value)} /></label>
-    <label>Short description<textarea rows={2} maxLength={400} value={f.excerpt} onChange={e => set('excerpt', e.target.value)} /></label>
-    <div className={`editor-preview-layout${previewOpen ? ' is-split' : ''}`}>
-      <div className="editor-writing-pane">
-        <label>Article Content</label>
-        <div className="article-content"><ReactQuill className="article-quill" theme="snow" value={f.content} onChange={value => set('content', value)} /></div>
-      </div>
-      {previewOpen && <ArticlePreview draft={f} cats={cats} />}
+    <div id="edit-post-panel" className="admin-editor-panel" role="tabpanel" aria-labelledby="edit-post-tab" hidden={previewOpen}>
+      <label>Title<input required maxLength={200} value={f.title} onChange={e => set('title', e.target.value)} /></label>
+      <label>URL slug<input value={f.slug} maxLength={90} placeholder="Generated from the title if empty" onChange={e => set('slug', e.target.value)} /></label>
+      <label>Short description<textarea rows={2} maxLength={400} value={f.excerpt} onChange={e => set('excerpt', e.target.value)} /></label>
+      <label>Article Content</label>
+      <div className="article-content"><ReactQuill className="article-quill" theme="snow" value={f.content} onChange={value => set('content', value)} /></div>
+      <label>Insert image into content<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={e => up(e.target.files?.[0], url => set('content', f.content + `<p><img src="${url}" alt="Describe the image"></p>`))} /></label>
+      <label>Featured image<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={e => up(e.target.files?.[0], url => set('image', url))} /></label>
+      {f.image && <p><img src={f.image} alt="Featured image preview" width={160} /> <button type="button" onClick={() => set('image', '')}>Remove</button></p>}
+      <label>Category<select value={f.category} onChange={e => set('category', e.target.value)}><option value="">Choose…</option>{cats.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}</select></label>
+      {user.role === 'admin'
+        ? <label>Author<select value={f.author} onChange={e => {
+          const author = authors.find(a => a._id === e.target.value);
+          setF(s => ({ ...s, author: e.target.value, authorName: author?.name || 'Editorial Team' }));
+        }}>{authors.map(author => <option key={author._id} value={author._id}>{author.name} ({author.role})</option>)}</select></label>
+        : <p>Author: {user.name}</p>}
+      <label>Tags (comma separated)<input value={f.tags} onChange={e => set('tags', e.target.value)} /></label>
+      <label>Status<select value={f.status} onChange={e => set('status', e.target.value)}><option value="draft">Draft</option><option value="published">Published</option></select></label>
+      <label>Publish date and time<input type="datetime-local" value={f.publishAt} onChange={e => set('publishAt', e.target.value)} /></label>
+      {future && <p className="state">This post is scheduled and will appear on the site at the time above.</p>}
+      <label className="chk"><input type="checkbox" checked={f.featured} onChange={e => set('featured', e.target.checked)} /> Show as featured on the homepage</label>
+      <label>SEO title<input maxLength={70} value={f.seoTitle} onChange={e => set('seoTitle', e.target.value)} /></label>
+      <label>Meta description<textarea rows={2} maxLength={160} value={f.seoDescription} onChange={e => set('seoDescription', e.target.value)} /></label>
     </div>
-    <label>Insert image into content<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={e => up(e.target.files?.[0], url => set('content', f.content + `<p><img src="${url}" alt="Describe the image"></p>`))} /></label>
-    <label>Featured image<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={e => up(e.target.files?.[0], url => set('image', url))} /></label>
-    {f.image && <p><img src={f.image} alt="Featured image preview" width={160} /> <button type="button" onClick={() => set('image', '')}>Remove</button></p>}
-    <label>Category<select value={f.category} onChange={e => set('category', e.target.value)}><option value="">Choose…</option>{cats.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}</select></label>
-    {user.role === 'admin'
-      ? <label>Author<select value={f.author} onChange={e => {
-        const author = authors.find(a => a._id === e.target.value);
-        setF(s => ({ ...s, author: e.target.value, authorName: author?.name || 'Editorial Team' }));
-      }}>{authors.map(author => <option key={author._id} value={author._id}>{author.name} ({author.role})</option>)}</select></label>
-      : <p>Author: {user.name}</p>}
-    <label>Tags (comma separated)<input value={f.tags} onChange={e => set('tags', e.target.value)} /></label>
-    <label>Status<select value={f.status} onChange={e => set('status', e.target.value)}><option value="draft">Draft</option><option value="published">Published</option></select></label>
-    <label>Publish date and time<input type="datetime-local" value={f.publishAt} onChange={e => set('publishAt', e.target.value)} /></label>
-    {future && <p className="state">This post is scheduled and will appear on the site at the time above.</p>}
-    <label className="chk"><input type="checkbox" checked={f.featured} onChange={e => set('featured', e.target.checked)} /> Show as featured on the homepage</label>
-    <label>SEO title<input maxLength={70} value={f.seoTitle} onChange={e => set('seoTitle', e.target.value)} /></label>
-    <label>Meta description<textarea rows={2} maxLength={160} value={f.seoDescription} onChange={e => set('seoDescription', e.target.value)} /></label>
+    <div id="preview-post-panel" className="admin-preview-panel" role="tabpanel" aria-labelledby="preview-post-tab" hidden={!previewOpen}>
+      <ArticlePreview draft={f} cats={cats} />
+    </div>
     {err && <p className="state err" role="alert">{err}</p>}<button className="btn" disabled={busy}>{busy ? 'Saving…' : 'Save post'}</button></form>);
 }
