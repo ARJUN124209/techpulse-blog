@@ -124,8 +124,8 @@ export function PostPage() {
   const { slug } = useParams();
   const { data, error, loading } = useFetch<{ post: Post; relatedPosts: Post[]; prevPost: { title: string; slug: string } | null; nextPost: { title: string; slug: string } | null }>(`/posts/${slug}`);
   const post = data?.post; const body = useMemo(() => render(post?.content || ''), [post]);
-  const [progress, setProgress] = useState(0), [speaking, setSpeaking] = useState(false), [paused, setPaused] = useState(false), [audioError, setAudioError] = useState('');
-  const contentRef = useRef<HTMLDivElement>(null), utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const [progress, setProgress] = useState(0), [activeHeading, setActiveHeading] = useState(''), [speaking, setSpeaking] = useState(false), [paused, setPaused] = useState(false), [audioError, setAudioError] = useState('');
+  const pageRef = useRef<HTMLDivElement>(null), contentRef = useRef<HTMLDivElement>(null), utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const here = typeof location !== 'undefined' ? location.href : '';
   const articleText = useMemo(() => {
     const text = document.createElement('div');
@@ -134,8 +134,14 @@ export function PostPage() {
   }, [body.html]);
   useEffect(() => {
     const update = () => {
-      const scrollable = document.documentElement.scrollHeight - window.innerHeight;
-      setProgress(scrollable > 0 ? Math.min(100, Math.max(0, window.scrollY / scrollable * 100)) : 0);
+      const page = pageRef.current;
+      if (!page) return;
+      const pageTop = window.scrollY + page.getBoundingClientRect().top;
+      const scrollable = page.offsetHeight - window.innerHeight;
+      const pageProgress = scrollable > 0
+        ? (window.scrollY - pageTop) / scrollable * 100
+        : window.scrollY >= pageTop ? 100 : 0;
+      setProgress(Math.min(100, Math.max(0, pageProgress)));
     };
     update();
     window.addEventListener('scroll', update, { passive: true });
@@ -145,6 +151,26 @@ export function PostPage() {
       window.removeEventListener('resize', update);
     };
   }, [post?._id, body.html]);
+  useEffect(() => {
+    const article = contentRef.current;
+    if (!article || !body.toc.length) { setActiveHeading(''); return; }
+    const headings = body.toc
+      .map(item => document.getElementById(item.id))
+      .filter((heading): heading is HTMLElement => heading instanceof HTMLElement && article.contains(heading));
+    if (!headings.length) { setActiveHeading(''); return; }
+    const update = () => {
+      const current = headings.filter(heading => heading.getBoundingClientRect().top <= window.innerHeight * 0.2);
+      const next = current[current.length - 1]?.id || '';
+      setActiveHeading(previous => previous === next ? previous : next);
+    };
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
+  }, [post?._id, body.html, body.toc]);
   useEffect(() => {
     const container = contentRef.current;
     if (!container) return;
@@ -160,11 +186,11 @@ export function PostPage() {
       const click = async () => {
         try {
           await navigator.clipboard.writeText(code);
-          button.textContent = 'Copied';
+          button.textContent = '✓ Copied!';
         } catch {
           button.textContent = 'Copy failed';
         }
-        timers.push(window.setTimeout(() => { button.textContent = 'Copy code'; }, 1800));
+        timers.push(window.setTimeout(() => { button.textContent = 'Copy code'; }, 2000));
       };
       button.addEventListener('click', click);
       pre.appendChild(button);
@@ -225,7 +251,7 @@ export function PostPage() {
   return <>
     <div className="reading-progress" aria-hidden="true"><span style={{ width: `${progress}%` }} /></div>
     <PageMetadata title={`${post.seoTitle || post.title} | ${SITE}`} description={post.seoDescription || post.excerpt || ''} image={post.image} structuredData={schemaData} />
-    <div className="post-page">
+    <div ref={pageRef} className="post-page">
       <header className="post-header">
         {post.category && <Link className="tag" to={`/category/${post.category.slug}`}>{post.category.name}</Link>}
         <h1>{post.title}</h1>
@@ -243,7 +269,7 @@ export function PostPage() {
           <div className="post-sidebar-sticky">
             {body.toc.length > 0 && <nav className="toc" aria-label="In this article">
               <h2>In this article</h2>
-              <ul>{body.toc.map(item => <li key={item.id} className={'l' + item.lvl}><a href={`#${item.id}`}>{item.text}</a></li>)}</ul>
+              <ul>{body.toc.map(item => <li key={item.id} className={'l' + item.lvl}><a className={activeHeading === item.id ? 'active' : ''} aria-current={activeHeading === item.id ? 'location' : undefined} href={`#${item.id}`}>{item.text}</a></li>)}</ul>
             </nav>}
             <section className="post-share" aria-labelledby="share-heading">
               <h2 id="share-heading">Share</h2>
