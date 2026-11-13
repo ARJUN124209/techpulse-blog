@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, FormEvent } from 'react';
 import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import ReactGA from 'react-ga4';
 import { Cat, SITE, useFetch } from './lib';
-import { Home, Blog, PostPage, SavedPage } from './pages';
+import { Home, Blog, PostPage, SavedPage, SpotlightSearch } from './pages';
 import { Admin } from './admin';
 import { SavedArticlesProvider, useSavedArticles } from './saved';
 
@@ -17,13 +17,54 @@ function ShieldIcon() {
   </svg>;
 }
 
+function NewsletterForm() {
+  const [email, setEmail] = useState('');
+  const [status, setStatus] = useState('');
+  const [error, setError] = useState('');
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    try {
+      localStorage.setItem('techpulse:newsletter-email', email.trim());
+      setStatus('Saved on this device. Newsletter delivery is not configured yet.');
+      setError('');
+      setEmail('');
+    } catch {
+      setError('Could not save your email in this browser.');
+      setStatus('');
+    }
+  };
+  return <section className="footer-newsletter" aria-labelledby="footer-newsletter-title">
+    <strong id="footer-newsletter-title">Newsletter</strong>
+    <p>Thoughtful engineering stories, occasionally.</p>
+    <form className="footer-newsletter-form" onSubmit={submit}>
+      <label className="sr" htmlFor="footer-newsletter-email">Your email address</label>
+      <input id="footer-newsletter-email" type="email" autoComplete="email" required placeholder="you@example.com" value={email} onChange={event => setEmail(event.target.value)} />
+      <button type="submit">Join</button>
+    </form>
+    <small className="newsletter-status" role={error ? 'alert' : 'status'}>{error || status || 'Email is saved locally; delivery is not connected.'}</small>
+  </section>;
+}
+
 function Shell({ children }: { children: React.ReactNode }) {
   const { data: cats } = useFetch<Cat[]>('/categories'); const nav = useNavigate(); const { pathname } = useLocation();
   const { articles: savedArticles } = useSavedArticles();
   const [open, setOpen] = useState(false);
+  const [spotlightOpen, setSpotlightOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
   const [hasAdminToken] = useState(() => Boolean(localStorage.getItem('tok')));
-  useEffect(() => { setOpen(false); window.scrollTo(0, 0); }, [pathname]);
+  const openSpotlight = useCallback(() => setSpotlightOpen(true), []);
+  const closeSpotlight = useCallback(() => setSpotlightOpen(false), []);
+  useEffect(() => { setOpen(false); setSpotlightOpen(false); window.scrollTo(0, 0); }, [pathname]);
+  useEffect(() => {
+    const handleShortcut = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        openSpotlight();
+      }
+    };
+    window.addEventListener('keydown', handleShortcut);
+    return () => window.removeEventListener('keydown', handleShortcut);
+  }, [openSpotlight]);
   const search = (e: FormEvent<HTMLFormElement>) => { e.preventDefault(); const q = String(new FormData(e.currentTarget).get('q') || '').trim(); if (q) nav(`/blog?q=${encodeURIComponent(q)}`); };
   const toggleTheme = () => {
     const next = theme === 'dark' ? 'light' : 'dark';
@@ -46,17 +87,20 @@ function Shell({ children }: { children: React.ReactNode }) {
       <nav id="menu" aria-label="Main" className={open ? 'open' : ''}>
         <NavLink to="/" end>Home</NavLink><NavLink to="/blog">All articles</NavLink>
         <NavLink to="/saved" className="saved-nav">Saved <span className="saved-count">{savedArticles.length}</span></NavLink>
-        <form role="search" onSubmit={search}><label className="sr" htmlFor="q">Search articles</label><input id="q" name="q" type="search" placeholder="Search articles" maxLength={60} /><button>Search</button></form>
+        <form role="search" onSubmit={search}><label className="sr" htmlFor="q">Search articles</label><input id="q" name="q" type="search" placeholder="Search articles" maxLength={60} /><button>Search</button><button type="button" className="search-shortcut" onClick={openSpotlight} aria-label="Open spotlight search">Ctrl K</button></form>
         <Link to="/admin" className="team-sign-in mobile-team-sign-in"><ShieldIcon />{hasAdminToken ? 'Dashboard' : 'Team sign in'}</Link>
       </nav>
     </div>
     <nav className="wrap cats" aria-label="Categories">{cats?.map(c => <NavLink key={c._id} to={`/category/${c.slug}`}>{c.name}</NavLink>)}</nav></header>
     <main id="main" className="wrap">{children}</main>
     <footer><div className="wrap foot">
-      <div><strong>{SITE}</strong><p>Practical writing on software, AI, cloud and security from our engineering team.</p><p>© {new Date().getFullYear()} {SITE} Technologies. 12 Example Street, Chennai, India.</p></div>
+      <div><strong>{SITE}</strong><p>Practical writing on software, AI, cloud and security from our engineering team.</p><p>© {new Date().getFullYear()} {SITE} Technologies.<br />TIDEL Park, Rajiv Gandhi Salai, Taramani, Chennai, Tamil Nadu 600113</p></div>
       <div><strong>Useful links</strong><Link to="/blog">All articles</Link><a href="/sitemap.xml">Sitemap</a><Link className="team-sign-in footer-team-sign-in" to="/admin"><ShieldIcon />Team sign in</Link></div>
       <div><strong>Follow us</strong><a href="https://x.com" rel="noopener noreferrer">X</a><a href="https://www.linkedin.com" rel="noopener noreferrer">LinkedIn</a><a href="https://github.com" rel="noopener noreferrer">GitHub</a></div>
-    </div></footer></>);
+      <NewsletterForm />
+    </div></footer>
+    {spotlightOpen && <SpotlightSearch onClose={closeSpotlight} />}
+  </>);
 }
 export default function App() {
   const location = useLocation();

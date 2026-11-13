@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
-import { Cat, Paged, Post, SITE, fmt, useFetch } from './lib';
+import { api, Cat, Paged, Post, SITE, fmt, useFetch } from './lib';
 import { BookmarkButton, Card, readingTime, State, Thumb } from './ui';
 import { toSavedArticle, useSavedArticles } from './saved';
 
@@ -21,6 +22,108 @@ function PageMetadata({ title, description, image, structuredData }: { title: st
     <meta name="twitter:card" content="summary_large_image" />
     {structuredData && <script type="application/ld+json">{JSON.stringify(structuredData)}</script>}
   </Helmet>;
+}
+
+export function SpotlightSearch({ onClose }: { onClose: () => void }) {
+  const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [results, setResults] = useState<Post[]>([]);
+  const [searchError, setSearchError] = useState('');
+  const [searchLoading, setSearchLoading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const { data: categories, loading: categoriesLoading, error: categoriesError } = useFetch<Cat[]>('/categories');
+  const { data: trending, loading: trendingLoading, error: trendingError } = useFetch<Post[]>('/posts/trending');
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 240);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+  useEffect(() => {
+    if (!debouncedQuery) {
+      setResults([]);
+      setSearchError('');
+      setSearchLoading(false);
+      return;
+    }
+    let active = true;
+    setSearchLoading(true);
+    setSearchError('');
+    api<Paged>(`/posts?limit=8&search=${encodeURIComponent(debouncedQuery)}`)
+      .then(data => { if (active) setResults(data.items); })
+      .catch(error => { if (active) setSearchError(error instanceof Error ? error.message : 'Search failed.'); })
+      .finally(() => { if (active) setSearchLoading(false); });
+    return () => { active = false; };
+  }, [debouncedQuery]);
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    inputRef.current?.focus();
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, []);
+
+  const handleDialogKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = event.currentTarget.querySelectorAll<HTMLElement>('input:not([disabled]),button:not([disabled]),a[href]');
+    const first = focusable[0], last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last?.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first?.focus();
+    }
+  };
+
+  return <div className="spotlight-backdrop" onMouseDown={event => {
+    if (event.target === event.currentTarget) onClose();
+  }}>
+    <section className="spotlight-modal" role="dialog" aria-modal="true" aria-labelledby="spotlight-title" onKeyDown={handleDialogKeyDown}>
+      <header className="spotlight-header">
+        <div><span className="spotlight-kicker">TechPulse spotlight</span><h2 id="spotlight-title">Search the publication</h2></div>
+        <button type="button" className="spotlight-close" onClick={onClose} aria-label="Close search">Esc</button>
+      </header>
+      <label className="sr" htmlFor="spotlight-query">Search articles</label>
+      <div className="spotlight-input-wrap">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" /><path d="m13 13 4 4" /></svg>
+        <input ref={inputRef} id="spotlight-query" type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search articles, topics, and ideas…" autoComplete="off" />
+        {query && <button type="button" onClick={() => setQuery('')} aria-label="Clear search">Clear</button>}
+      </div>
+      {debouncedQuery
+        ? <section className="spotlight-results" aria-live="polite" aria-label="Search results">
+          <h3>Results for “{debouncedQuery}”</h3>
+          {searchLoading && <p className="spotlight-hint" role="status">Searching…</p>}
+          {searchError && <p className="state err" role="alert">{searchError}</p>}
+          {!searchLoading && !searchError && !results.length && <p className="spotlight-hint">No matching articles. Try another search.</p>}
+          {results.map(post => <Link className="spotlight-result" key={post._id} to={`/blog/${post.slug}`} onClick={onClose}>
+            <span className="spotlight-result-icon" aria-hidden="true">↗</span>
+            <span><strong>{post.title}</strong><small>{post.category?.name || 'Article'} · {post.excerpt}</small></span>
+          </Link>)}
+        </section>
+        : <div className="spotlight-discover">
+          <section aria-labelledby="spotlight-categories">
+            <h3 id="spotlight-categories">Jump to a category</h3>
+            {categoriesLoading && <p className="spotlight-hint" role="status">Loading categories…</p>}
+            {categoriesError && <p className="state err" role="alert">{categoriesError}</p>}
+            <div className="spotlight-categories">{categories?.map(category =>
+              <Link key={category._id} to={`/category/${category.slug}`} onClick={onClose}>{category.name}<span aria-hidden="true">→</span></Link>
+            )}</div>
+          </section>
+          <section className="spotlight-trending" aria-labelledby="spotlight-trending-heading">
+            <h3 id="spotlight-trending-heading">Trending now</h3>
+            <State loading={trendingLoading} error={trendingError} empty={!trendingLoading && !trendingError && !trending?.length ? 'No trending articles yet.' : ''} />
+            {trending?.slice(0, 4).map((post, index) => <Link key={post._id || post.slug} to={`/blog/${post.slug}`} onClick={onClose}>
+              <span>{String(index + 1).padStart(2, '0')}</span><strong>{post.title}</strong><small>↗</small>
+            </Link>)}
+          </section>
+        </div>}
+      <footer className="spotlight-footer"><span>Search TechPulse articles and categories</span><span><kbd>Ctrl</kbd><kbd>K</kbd> to open <b>Esc</b> to close</span></footer>
+    </section>
+  </div>;
 }
 
 export function Home() {
@@ -162,6 +265,53 @@ export function renderArticleContent(md: string) {
     toc.push({ id, text, lvl: +l }); return `<h${l} id="${id}">${t}</h${l}>`;
   });
   return { toc, html: DOMPurify.sanitize(raw, { ADD_TAGS: ['iframe'], ADD_ATTR: ['allowfullscreen', 'frameborder'] }) };
+}
+
+type ArticleReactionCounts = { applaud: number; insightful: number; helpful: number };
+type ArticleReactionState = { counts: ArticleReactionCounts; error: string };
+const emptyReactions = (): ArticleReactionCounts => ({ applaud: 0, insightful: 0, helpful: 0 });
+
+function isArticleReactionCounts(value: unknown): value is ArticleReactionCounts {
+  if (typeof value !== 'object' || value === null) return false;
+  const counts = value as Record<string, unknown>;
+  return ['applaud', 'insightful', 'helpful'].every(key =>
+    typeof counts[key] === 'number' && Number.isSafeInteger(counts[key]) && counts[key] >= 0
+  );
+}
+
+function readArticleReactions(slug: string): ArticleReactionState {
+  try {
+    const stored = localStorage.getItem(`techpulse:reactions:${slug}`);
+    if (!stored) return { counts: emptyReactions(), error: '' };
+    const parsed: unknown = JSON.parse(stored);
+    return isArticleReactionCounts(parsed)
+      ? { counts: parsed, error: '' }
+      : { counts: emptyReactions(), error: 'Saved reactions could not be read.' };
+  } catch {
+    return { counts: emptyReactions(), error: 'Saved reactions could not be read.' };
+  }
+}
+
+function ArticleReactions({ slug }: { slug: string }) {
+  const [state, setState] = useState(() => readArticleReactions(slug));
+  const react = (reaction: keyof ArticleReactionCounts) => {
+    const counts = { ...state.counts, [reaction]: state.counts[reaction] + 1 };
+    try {
+      localStorage.setItem(`techpulse:reactions:${slug}`, JSON.stringify(counts));
+      setState({ counts, error: '' });
+    } catch {
+      setState(previous => ({ ...previous, error: 'Could not save your reaction. Check browser storage and try again.' }));
+    }
+  };
+  return <section className="article-reactions" aria-labelledby="article-reactions-title">
+    <div><span className="section-kicker">Your perspective</span><h2 id="article-reactions-title">Was this article helpful?</h2></div>
+    <div className="reaction-buttons">
+      <button type="button" onClick={() => react('applaud')}><span aria-hidden="true">👏</span> Applaud <b aria-live="polite">{state.counts.applaud}</b></button>
+      <button type="button" onClick={() => react('insightful')}><span aria-hidden="true">🔥</span> Insightful <b aria-live="polite">{state.counts.insightful}</b></button>
+      <button type="button" onClick={() => react('helpful')}><span aria-hidden="true">💡</span> Helpful <b aria-live="polite">{state.counts.helpful}</b></button>
+    </div>
+    {state.error && <p className="reaction-error" role="alert">{state.error}</p>}
+  </section>;
 }
 
 export function PostPage() {
@@ -398,6 +548,7 @@ export function PostPage() {
             {data!.prevPost ? <Link to={`/blog/${data!.prevPost.slug}`}><small>Previous article</small><strong>{data!.prevPost.title}</strong></Link> : <span />}
             {data!.nextPost && <Link to={`/blog/${data!.nextPost.slug}`}><small>Next article</small><strong>{data!.nextPost.title}</strong></Link>}
           </nav>
+          <ArticleReactions key={post.slug} slug={post.slug} />
           {data!.relatedPosts.length > 0 && <section className="post-related" aria-labelledby="rel">
             <h2 id="rel" className="h">Related articles</h2>
             <div className="post-related-grid">{data!.relatedPosts.map(article => <Card key={article._id} p={article} />)}</div>

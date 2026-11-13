@@ -16,15 +16,33 @@ export function Admin() {
 }
 function Login({ done }: { done: (u: User) => void }) {
   const [err, setErr] = useState(''), [busy, setBusy] = useState(false);
+  const emailRef = useRef<HTMLInputElement>(null), passwordRef = useRef<HTMLInputElement>(null);
+  const demoEmail = import.meta.env.DEV ? import.meta.env.VITE_DEMO_ADMIN_EMAIL || '' : '';
+  const demoPassword = import.meta.env.DEV ? import.meta.env.VITE_DEMO_ADMIN_PASSWORD || '' : '';
+  const demoAvailable = Boolean(demoEmail && demoPassword);
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault(); setBusy(true); setErr(''); const f = new FormData(e.currentTarget);
     try { const r = await api<{ token: string; user: User }>('/auth/login', { method: 'POST', body: JSON.stringify({ email: f.get('email'), password: f.get('password') }) });
       localStorage.setItem('tok', r.token); localStorage.setItem('usr', JSON.stringify(r.user)); done(r.user); } catch (x) { setErr((x as Error).message); } finally { setBusy(false); }
   };
-  return <form className="login" onSubmit={submit}><h1>Team sign in</h1>
-    <label>Email<input name="email" type="email" required autoComplete="username" /></label>
-    <label>Password<input name="password" type="password" required autoComplete="current-password" /></label>
-    {err && <p className="state err" role="alert">{err}</p>}<button className="btn" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button><p><Link to="/">Back to the blog</Link></p></form>;
+  return <>
+    <form className="login" onSubmit={submit}><h1>Team sign in</h1>
+      <label>Email<input ref={emailRef} name="email" type="email" required autoComplete="username" /></label>
+      <label>Password<input ref={passwordRef} name="password" type="password" required autoComplete="current-password" /></label>
+      {err && <p className="state err" role="alert">{err}</p>}<button className="btn" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button><p><Link to="/">Back to the blog</Link></p>
+    </form>
+    <div className="demo-admin-fill">
+      <button type="button" disabled={!demoAvailable} onClick={() => {
+        if (emailRef.current && passwordRef.current) {
+          emailRef.current.value = demoEmail;
+          passwordRef.current.value = demoPassword;
+        }
+      }}>⚡ Demo Admin Auto-Fill</button>
+      {!demoAvailable && <small>{import.meta.env.DEV
+        ? 'Set VITE_DEMO_ADMIN_EMAIL and VITE_DEMO_ADMIN_PASSWORD in your local client/.env to enable demo autofill.'
+        : 'Demo autofill is disabled on public builds so admin credentials stay private.'}</small>}
+    </div>
+  </>;
 }
 function Dash({ user, out }: { user: User; out: () => void }) {
   const [posts, setPosts] = useState<Post[]>([]), [cats, setCats] = useState<Cat[]>([]), [authors, setAuthors] = useState<Author[]>([]), [edit, setEdit] = useState<string | null>(null);
@@ -66,8 +84,8 @@ function Dash({ user, out }: { user: User; out: () => void }) {
     <section className="admin-kpis" aria-label="Content overview">
       <div className="admin-kpi"><span>Total articles</span><strong>{loading ? '—' : posts.length}</strong></div>
       <div className="admin-kpi"><span>Published</span><strong>{loading ? '—' : publishedCount}</strong></div>
-      <div className="admin-kpi"><span>Drafts</span><strong>{loading ? '—' : draftsCount}</strong></div>
       <div className="admin-kpi"><span>Scheduled</span><strong>{loading ? '—' : scheduledCount}</strong></div>
+      <div className="admin-kpi"><span>Drafts</span><strong>{loading ? '—' : draftsCount}</strong></div>
       <div className="admin-kpi"><span>Total categories</span><strong>{loading ? '—' : cats.length}</strong></div>
     </section>
     <button className="btn" disabled={loading} onClick={() => setEdit('new')}>New post</button>
