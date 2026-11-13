@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { Cat, Paged, Post, SITE, fmt, useFetch } from './lib';
-import { BookmarkButton, Card, State, Thumb } from './ui';
+import { BookmarkButton, Card, readingTime, State, Thumb } from './ui';
 import { toSavedArticle, useSavedArticles } from './saved';
 
 function PageMetadata({ title, description, image, structuredData }: { title: string; description: string; image?: string; structuredData?: object }) {
@@ -26,21 +26,50 @@ function PageMetadata({ title, description, image, structuredData }: { title: st
 export function Home() {
   const f = useFetch<Post[]>('/posts/featured'), l = useFetch<Paged>('/posts?limit=6'), trending = useFetch<Post[]>('/posts/trending');
   const c = useFetch<Cat[]>('/categories');
+  const navigate = useNavigate();
+  const [query, setQuery] = useState('');
   const [lead, ...rest] = f.data ?? [];
   return <>
     <PageMetadata title={`${SITE} Blog: software, AI, cloud and security`} description="Articles, tutorials and company news from our engineering team." />
     <div className="home">
+      <section className="editorial-hero" aria-labelledby="editorial-title">
+        <div className="editorial-hero-content">
+          <span className="editorial-eyebrow"><span aria-hidden="true">⚡</span> Engineering &amp; product insights</span>
+          <h1 id="editorial-title">Ideas for the <span>builders</span> shaping what’s next.</h1>
+          <p>Thoughtful perspectives on software, AI, cloud, and the craft of building better products.</p>
+          <form className="editorial-search" role="search" onSubmit={event => {
+            event.preventDefault();
+            const value = query.trim();
+            if (value) navigate(`/blog?q=${encodeURIComponent(value)}`);
+          }}>
+            <label className="sr" htmlFor="editorial-search-input">Search engineering articles</label>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" /><path d="m13 13 4 4" /></svg>
+            <input id="editorial-search-input" type="search" placeholder="Search ideas, technologies, and more..." value={query} onChange={event => setQuery(event.target.value)} />
+            <button type="submit">Search</button>
+          </form>
+          <nav className="editorial-topics" aria-label="Explore topics">
+            <Link className="topic-pill active" to="/">All topics</Link>
+            {c.data?.map(category => <Link className="topic-pill" key={category._id} to={`/category/${category.slug}`}>{category.name}</Link>)}
+          </nav>
+        </div>
+      </section>
       <section aria-labelledby="feat">
-        <h1 id="feat" className="h">Featured</h1>
+        <div className="section-heading"><div><span className="section-kicker">Editor’s pick</span><h2 id="feat" className="h">Featured story</h2></div></div>
         <State loading={f.loading} error={f.error} empty={!f.loading && !f.error && !lead ? 'No featured articles yet.' : ''} />
         {lead && <>
           <article className="home-hero">
             <div className="home-hero-copy">
-              {lead.category && <Link className="tag" to={`/category/${lead.category.slug}`}>{lead.category.name}</Link>}
+              <div className="feature-meta">
+                {lead.category && <Link className="tag" to={`/category/${lead.category.slug}`}>{lead.category.name}</Link>}
+                <span className="reading-time"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" /><path d="M8 4.5V8l2.2 1.4" /></svg>{readingTime(lead.content || lead.excerpt)} min read</span>
+              </div>
               <h2><Link to={`/blog/${lead.slug}`}>{lead.title}</Link></h2>
               <p>{lead.excerpt}</p>
-              <small>{lead.authorName || lead.author?.name || 'Editorial Team'} · {fmt(lead.publishAt)}</small>
-              <Link className="btn" to={`/blog/${lead.slug}`}>Read article</Link>
+              <div className="feature-byline">
+                <span className="author-avatar" aria-hidden="true">{(lead.authorName || lead.author?.name || 'Editorial Team').trim().charAt(0).toUpperCase()}</span>
+                <span><strong>{lead.authorName || lead.author?.name || 'Editorial Team'}</strong><small><time dateTime={lead.publishAt}>{fmt(lead.publishAt)}</time></small></span>
+              </div>
+              <Link className="feature-link" to={`/blog/${lead.slug}`}>Read article <span aria-hidden="true">→</span></Link>
             </div>
             <Link className="home-hero-media" to={`/blog/${lead.slug}`} aria-label={`Read ${lead.title}`}>
               <Thumb p={lead} />
@@ -52,7 +81,7 @@ export function Home() {
 
       <div className="home-layout">
         <section className="home-latest" aria-labelledby="latest">
-          <h2 id="latest" className="h">Latest articles</h2>
+          <div className="section-heading"><div><span className="section-kicker">Fresh perspectives</span><h2 id="latest" className="h">Latest articles</h2></div><Link className="section-link" to="/blog">View all <span aria-hidden="true">→</span></Link></div>
           <State loading={l.loading} error={l.error} empty={!l.loading && !l.error && !l.data?.items.length ? 'No articles published yet.' : ''} />
           <div className="home-latest-grid">{l.data?.items.map(post => <Card key={post._id} p={post} />)}</div>
           <p><Link className="btn" to="/blog">Browse all articles</Link></p>
@@ -63,7 +92,7 @@ export function Home() {
             <h2 id="home-categories" className="h">Categories</h2>
             <State loading={c.loading} error={c.error} empty={!c.loading && !c.error && !c.data?.length ? 'No categories yet.' : ''} />
             <ul className="home-category-list">{c.data?.map(category => <li key={category._id}>
-              <Link to={`/category/${category.slug}`}>{category.name}</Link>
+              <Link to={`/category/${category.slug}`}><span>{category.name}</span><span className="category-arrow" aria-hidden="true">→</span></Link>
             </li>)}</ul>
           </section>
           <section aria-labelledby="home-popular">
@@ -337,28 +366,28 @@ export function PostPage() {
               <button type="button" onClick={stopSpeech} disabled={!speechSupported || !speaking}>Stop</button>
               <button type="button" onClick={cycleSpeed} disabled={!speechSupported} aria-label={`Playback speed ${speed}x; change speed`}>{speed}x</button>
             </span>
-            <BookmarkButton article={toSavedArticle(post)} />
             <span className="sr" aria-live="polite">{audioError}</span>
           </span>
         </p>
       </header>
       {post.image && <img className="post-cover" src={post.image} alt={post.title} width={1200} height={630} />}
 
+      <div className="article-action-bar" role="group" aria-label="Share and save article">
+        <span className="action-bar-label">Enjoying this story?</span>
+        <a href={`https://www.linkedin.com/sharing/share-offsite/?url=${u}`} target="_blank" rel="noopener noreferrer">LinkedIn</a>
+        <a href={`https://twitter.com/intent/tweet?url=${u}&text=${t}`} target="_blank" rel="noopener noreferrer">Share on X</a>
+        <button type="button" onClick={() => navigator.clipboard?.writeText(here)}>Copy link</button>
+        <BookmarkButton article={toSavedArticle(post)} />
+      </div>
+
       <div className="post-layout">
         <aside className="post-sidebar">
           <div className="post-sidebar-sticky">
             {body.toc.length > 0 && <nav className="toc" aria-label="In this article">
+              <span className="toc-progress" aria-hidden="true"><span style={{ height: `${progress}%` }} /></span>
               <h2>In this article</h2>
               <ul>{body.toc.map(item => <li key={item.id} className={'l' + item.lvl}><a className={activeHeading === item.id ? 'active' : ''} aria-current={activeHeading === item.id ? 'location' : undefined} href={`#${item.id}`}>{item.text}</a></li>)}</ul>
             </nav>}
-            <section className="post-share" aria-labelledby="share-heading">
-              <h2 id="share-heading">Share</h2>
-              <div>
-                <a href={`https://www.linkedin.com/sharing/share-offsite/?url=${u}`} target="_blank" rel="noopener noreferrer">LinkedIn</a>
-                <a href={`https://twitter.com/intent/tweet?url=${u}&text=${t}`} target="_blank" rel="noopener noreferrer">X</a>
-                <button onClick={() => navigator.clipboard?.writeText(here)}>Copy link</button>
-              </div>
-            </section>
           </div>
         </aside>
 
@@ -375,6 +404,11 @@ export function PostPage() {
           </section>}
         </article>
       </div>
+      <section className="newsletter-callout" aria-labelledby="newsletter-title">
+        <div><span className="section-kicker">The TechPulse newsletter</span><h2 id="newsletter-title">Subscribe to TechPulse Newsletter</h2>
+          <p>Stay close to the ideas, tools, and teams shaping modern engineering. Explore the latest stories from our editorial team.</p></div>
+        <Link className="btn" to="/blog">Explore the latest <span aria-hidden="true">→</span></Link>
+      </section>
     </div>
   </>;
 }
