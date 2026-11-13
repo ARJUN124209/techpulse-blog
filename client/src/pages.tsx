@@ -796,9 +796,11 @@ export function PostPage() {
           <span>{readMins} Mins Read</span>
           <button type="button" className="copy-link-button" onClick={copyLink}>Copy link</button>
           <span className="audio-player" role="group" aria-label="Listen to article">
-            <button type="button" onClick={toggleSpeech} disabled={!speechSupported || !hasReadableArticle} aria-label={speaking && !paused ? 'Pause article audio' : 'Play article audio'}>{speaking && !paused ? 'Pause' : 'Listen'}</button>
-            <button type="button" onClick={stopSpeech} disabled={!speechSupported || !speaking}>Stop</button>
-            <button type="button" onClick={cycleSpeed} disabled={!speechSupported} aria-label={`Playback speed ${speed}x; change speed`}>{speed}x</button>
+            <button type="button" className="audio-play-button" onClick={toggleSpeech} disabled={!speechSupported || !hasReadableArticle} aria-label={speaking && !paused ? 'Pause article audio' : 'Play article audio'}>
+              <span aria-hidden="true">{speaking && !paused ? 'Ⅱ' : '▶'}</span>{speaking && !paused ? 'Pause' : 'Listen'}
+            </button>
+            <button type="button" className="audio-stop-button" onClick={stopSpeech} disabled={!speechSupported || !speaking}>Stop</button>
+            <button type="button" className="audio-speed-button" onClick={cycleSpeed} disabled={!speechSupported} aria-label={`Playback speed ${speed}x; change speed`}>{speed}x</button>
             {speaking && activeWord && <span className="audio-current-word" aria-label={`Currently reading ${activeWord}`}>{activeWord}</span>}
           </span>
           <span className="sr" aria-live="polite">{audioError || copyLinkStatus}</span>

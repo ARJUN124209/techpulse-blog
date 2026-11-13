@@ -547,3 +547,22 @@ nav a,.topic-pill{display:inline-flex;align-items:center;justify-content:center;
   .header-actions{gap:6px}
   .logo{font-size:1.05rem}
 }
+
+.cats{-ms-overflow-style:none;scrollbar-width:none}
+.cats::-webkit-scrollbar{display:none}
+.audio-player{display:inline-flex;align-items:center;gap:4px;min-height:32px;padding:3px 6px;border:1px solid rgba(37,99,235,.3);border-radius:999px;background:rgba(37,99,235,.06);color:#334155;font-size:.82rem;font-weight:500}
+.audio-player button{display:inline-flex;align-items:center;justify-content:center;min-height:24px;padding:3px 8px;border:0;border-radius:999px;background:transparent;color:#334155;font-size:inherit;font-weight:500;line-height:1.2}
+.audio-player .audio-play-button{gap:5px;color:#2563eb;font-weight:600}
+.audio-player button+button{padding-left:10px;border-left:1px solid rgba(148,163,184,.35);border-radius:0}
+.audio-player .audio-play-button:not(:disabled):hover{background:rgba(37,99,235,.1)}
+.audio-player .audio-stop-button:not(:disabled):hover,.audio-player .audio-speed-button:not(:disabled):hover{background:rgba(148,163,184,.12)}
+.audio-player .audio-current-word{flex:0 1 auto;min-width:0;max-width:120px;padding:2px 6px;font-size:.72rem}
+.post-meta-bar .audio-player{flex-wrap:nowrap;border-radius:999px;white-space:nowrap}
+.post-meta-bar .audio-player button{min-height:24px;padding:3px 8px}
+.post-meta-bar .audio-player button+button{padding-left:10px}
+:root[data-theme=dark] .audio-player{border-color:rgba(59,130,246,.3);background:rgba(59,130,246,.12);color:#cbd5e1}
+:root[data-theme=dark] .audio-player button{color:#cbd5e1}
+:root[data-theme=dark] .audio-player .audio-play-button{color:#60a5fa}
+:root[data-theme=dark] .audio-player .audio-play-button:not(:disabled):hover{background:rgba(96,165,250,.14)}
+:root[data-theme=dark] .audio-player .audio-stop-button:not(:disabled):hover,:root[data-theme=dark] .audio-player .audio-speed-button:not(:disabled):hover{background:rgba(203,213,225,.1)}
+:root[data-theme=dark] .audio-player .audio-current-word{background:rgba(96,165,250,.12)}
