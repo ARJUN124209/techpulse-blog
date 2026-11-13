@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Post, fmt } from './lib';
 import { SavedArticle, useSavedArticles } from './saved';
 
-type CardPost = Pick<Post, 'slug' | 'title' | 'excerpt' | 'publishAt'> & Pick<Post, 'image' | 'category' | 'authorName' | 'author' | 'content'>;
+type CardPost = Pick<Post, 'slug' | 'title' | 'excerpt' | 'publishAt'> & Pick<Post, 'image' | 'readingTime' | 'category' | 'authorName' | 'author' | 'content'>;
 
 export function readingTime(text?: string) {
   const words = text?.replace(/<[^>]+>/g, ' ').trim().split(/\s+/).filter(Boolean).length || 0;
@@ -38,7 +38,7 @@ export function Card({ p }: { p: CardPost }) {
       <Link to={`/blog/${p.slug}`} className="thumb" tabIndex={-1} aria-hidden="true"><Thumb p={p} /></Link>
       <div className="card-kicker">
         {p.category && <Link className="tag" to={`/category/${p.category.slug}`}>{p.category.name}</Link>}
-        <span className="reading-time"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" /><path d="M8 4.5V8l2.2 1.4" /></svg>{readingTime(p.content || p.excerpt)} min read</span>
+        <span className="reading-time"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" /><path d="M8 4.5V8l2.2 1.4" /></svg>{p.readingTime || readingTime(p.content || p.excerpt)} min read</span>
       </div>
       <h3><Link to={`/blog/${p.slug}`}>{p.title}</Link></h3>
       <p>{p.excerpt}</p>

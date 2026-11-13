@@ -8,6 +8,7 @@ const articleSchema = new Schema({
   excerpt: { type: String, default: '' },
   content: { type: String, default: '' },
   image: String,
+  readingTime: { type: Number, min: 1 },
   category: { type: Schema.Types.ObjectId, ref: 'Category' },
   tags: [String],
   author: { type: Schema.Types.ObjectId, ref: 'User' },

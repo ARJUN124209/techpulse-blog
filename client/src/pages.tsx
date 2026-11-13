@@ -164,7 +164,7 @@ export function Home() {
             <div className="home-hero-copy">
               <div className="feature-meta">
                 {lead.category && <Link className="tag" to={`/category/${lead.category.slug}`}>{lead.category.name}</Link>}
-                <span className="reading-time"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" /><path d="M8 4.5V8l2.2 1.4" /></svg>{readingTime(lead.content || lead.excerpt)} min read</span>
+                <span className="reading-time"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" /><path d="M8 4.5V8l2.2 1.4" /></svg>{lead.readingTime || readingTime(lead.content || lead.excerpt)} min read</span>
               </div>
               <h2><Link to={`/blog/${lead.slug}`}>{lead.title}</Link></h2>
               <p>{lead.excerpt}</p>

@@ -8,7 +8,7 @@ export const User = model('User', new Schema({
 export const Category = model('Category', new Schema({ name: { type: String, required: true, unique: true }, slug: { type: String, required: true, unique: true } }));
 export const Post = model('Post', new Schema({
   title: { type: String, required: true }, slug: { type: String, required: true, unique: true }, excerpt: { type: String, default: '' },
-  content: { type: String, default: '' }, image: String, category: { type: Schema.Types.ObjectId, ref: 'Category' }, tags: [String],
+  content: { type: String, default: '' }, image: String, readingTime: { type: Number, min: 1 }, category: { type: Schema.Types.ObjectId, ref: 'Category' }, tags: [String],
   author: { type: Schema.Types.ObjectId, ref: 'User' }, authorName: { type: String, default: 'Editorial Team' },
   status: { type: String, enum: ['draft', 'published'], default: 'draft' },
   publishAt: { type: Date, default: Date.now }, featured: { type: Boolean, default: false }, views: { type: Number, default: 0 },
