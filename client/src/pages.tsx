@@ -555,17 +555,19 @@ export function PostPage() {
   const { slug } = useParams();
   const { data, error, loading } = useFetch<{ post: Post; relatedPosts: Post[]; prevPost: { title: string; slug: string } | null; nextPost: { title: string; slug: string } | null }>(`/posts/${slug}`);
   const post = data?.post; const body = useMemo(() => renderArticleContent(post?.content || ''), [post]);
-  const [progress, setProgress] = useState(0), [activeHeading, setActiveHeading] = useState(''), [speaking, setSpeaking] = useState(false), [paused, setPaused] = useState(false), [audioError, setAudioError] = useState('');
+  const [progress, setProgress] = useState(0), [activeHeading, setActiveHeading] = useState(''), [speaking, setSpeaking] = useState(false), [paused, setPaused] = useState(false), [audioError, setAudioError] = useState(''), [activeWord, setActiveWord] = useState('');
   const [speed, setSpeed] = useState<1 | 1.25 | 1.5>(1);
   const [copyLinkStatus, setCopyLinkStatus] = useState('');
-  const pageRef = useRef<HTMLDivElement>(null), contentRef = useRef<HTMLDivElement>(null), utteranceRef = useRef<SpeechSynthesisUtterance | null>(null), speechPositionRef = useRef(0);
+  const pageRef = useRef<HTMLDivElement>(null), contentRef = useRef<HTMLDivElement>(null), utteranceRef = useRef<SpeechSynthesisUtterance | null>(null), speechBlockRef = useRef(0), speechPositionRef = useRef(0);
   const here = typeof location !== 'undefined' ? location.href : '';
-  const articleText = useMemo(() => {
-    const text = document.createElement('div');
-    text.innerHTML = body.html;
-    return text.textContent?.trim() || '';
-  }, [body.html]);
-  const speechText = useMemo(() => post ? `${post.title}. ${articleText}` : '', [post?.title, articleText]);
+  const getReadableBlocks = () => {
+    const container = contentRef.current;
+    return container ? Array.from(container.querySelectorAll<HTMLElement>('h2, h3, p, li, blockquote')) : [];
+  };
+  const clearReadingHighlight = () => {
+    contentRef.current?.querySelectorAll('.reading-active-line').forEach(element => element.classList.remove('reading-active-line'));
+    setActiveWord('');
+  };
   useEffect(() => {
     const update = () => {
       const page = pageRef.current;
@@ -642,48 +644,83 @@ export function PostPage() {
     setSpeaking(false);
     setPaused(false);
     setAudioError('');
+    setActiveWord('');
     speechPositionRef.current = 0;
+    speechBlockRef.current = 0;
     return () => {
       const utterance = utteranceRef.current;
       if (utterance) {
         utterance.onboundary = null;
+        utterance.onstart = null;
         utterance.onend = null;
         utterance.onerror = null;
       }
+      contentRef.current?.querySelectorAll('.reading-active-line').forEach(element => element.classList.remove('reading-active-line'));
       if ('speechSynthesis' in window) window.speechSynthesis.cancel();
       utteranceRef.current = null;
     };
   }, [slug]);
-  const speakFrom = (offset: number, rate: number) => {
-    if (!speechText) return;
+  const finishSpeech = () => {
+    utteranceRef.current = null;
+    speechPositionRef.current = 0;
+    speechBlockRef.current = 0;
+    clearReadingHighlight();
+    setSpeaking(false);
+    setPaused(false);
+  };
+  const speakBlock = (startIndex: number, rate: number, charOffset = 0, cancelCurrent = true) => {
+    const blocks = getReadableBlocks();
+    let index = startIndex;
+    while (index < blocks.length && !(blocks[index].textContent || '').trim()) index++;
+    if (index >= blocks.length) {
+      finishSpeech();
+      return;
+    }
+
     const speech = window.speechSynthesis;
     const previous = utteranceRef.current;
     if (previous) {
       previous.onboundary = null;
+      previous.onstart = null;
       previous.onend = null;
       previous.onerror = null;
     }
-    const utterance = new SpeechSynthesisUtterance(speechText.slice(offset));
+    if (cancelCurrent) {
+      speech.cancel();
+      clearReadingHighlight();
+    }
+    const element = blocks[index];
+    const text = (element.textContent || '').trim();
+    const utterance = new SpeechSynthesisUtterance(text.slice(charOffset));
     utterance.rate = rate;
+    utterance.onstart = () => {
+      if (utteranceRef.current !== utterance) return;
+      contentRef.current?.querySelectorAll('.reading-active-line').forEach(active => active.classList.remove('reading-active-line'));
+      element.classList.add('reading-active-line');
+      setActiveWord('');
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
     utterance.onboundary = event => {
-      if (utteranceRef.current === utterance) speechPositionRef.current = offset + event.charIndex;
+      if (utteranceRef.current !== utterance || event.name !== 'word') return;
+      speechBlockRef.current = index;
+      speechPositionRef.current = charOffset + event.charIndex;
+      const currentText = utterance.text.slice(event.charIndex);
+      setActiveWord(event.charLength > 0 ? utterance.text.slice(event.charIndex, event.charIndex + event.charLength).trim() : currentText.match(/^\S+/)?.[0] || '');
     };
     utterance.onend = () => {
       if (utteranceRef.current !== utterance) return;
       utteranceRef.current = null;
+      speechBlockRef.current = index + 1;
       speechPositionRef.current = 0;
-      setSpeaking(false);
-      setPaused(false);
+      speakBlock(index + 1, rate, 0, false);
     };
     utterance.onerror = () => {
       if (utteranceRef.current !== utterance) return;
-      utteranceRef.current = null;
-      speechPositionRef.current = 0;
-      setSpeaking(false);
-      setPaused(false);
+      finishSpeech();
       setAudioError('Audio playback failed.');
     };
-    speech.cancel();
+    speechBlockRef.current = index;
+    speechPositionRef.current = charOffset;
     utteranceRef.current = utterance;
     speech.speak(utterance);
     setSpeaking(true);
@@ -697,19 +734,21 @@ export function PostPage() {
       else { speech.pause(); setPaused(true); }
       return;
     }
-    speechPositionRef.current = 0;
-    speakFrom(0, speed);
+    speakBlock(0, speed);
   };
   const stopSpeech = () => {
     const utterance = utteranceRef.current;
     if (utterance) {
       utterance.onboundary = null;
+      utterance.onstart = null;
       utterance.onend = null;
       utterance.onerror = null;
     }
     window.speechSynthesis.cancel();
     utteranceRef.current = null;
     speechPositionRef.current = 0;
+    speechBlockRef.current = 0;
+    clearReadingHighlight();
     setSpeaking(false);
     setPaused(false);
     setAudioError('');
@@ -728,11 +767,12 @@ export function PostPage() {
     setSpeed(next);
     if (speaking) {
       const wasPaused = paused;
-      speakFrom(speechPositionRef.current, next);
+      speakBlock(speechBlockRef.current, next, speechPositionRef.current);
       if (wasPaused) { window.speechSynthesis.pause(); setPaused(true); }
     }
   };
   const speechSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
+  const hasReadableArticle = Boolean(body.html.trim());
   const schemaData = post && {
     '@context': 'https://schema.org', '@type': 'BlogPosting', headline: post.seoTitle || post.title, description: post.seoDescription || post.excerpt,
     image: post.image ? [new URL(post.image, location.origin).href] : undefined, datePublished: post.publishAt || post.createdAt,
@@ -756,9 +796,10 @@ export function PostPage() {
           <span>{readMins} Mins Read</span>
           <button type="button" className="copy-link-button" onClick={copyLink}>Copy link</button>
           <span className="audio-player" role="group" aria-label="Listen to article">
-            <button type="button" onClick={toggleSpeech} disabled={!speechSupported || !speechText} aria-label={speaking && !paused ? 'Pause article audio' : 'Play article audio'}>{speaking && !paused ? 'Pause' : 'Listen'}</button>
+            <button type="button" onClick={toggleSpeech} disabled={!speechSupported || !hasReadableArticle} aria-label={speaking && !paused ? 'Pause article audio' : 'Play article audio'}>{speaking && !paused ? 'Pause' : 'Listen'}</button>
             <button type="button" onClick={stopSpeech} disabled={!speechSupported || !speaking}>Stop</button>
             <button type="button" onClick={cycleSpeed} disabled={!speechSupported} aria-label={`Playback speed ${speed}x; change speed`}>{speed}x</button>
+            {speaking && activeWord && <span className="audio-current-word" aria-label={`Currently reading ${activeWord}`}>{activeWord}</span>}
           </span>
           <span className="sr" aria-live="polite">{audioError || copyLinkStatus}</span>
         </div>
@@ -786,7 +827,18 @@ export function PostPage() {
         </aside>
 
         <article className="post-content">
-          <div ref={contentRef} className="article-content prose" dangerouslySetInnerHTML={{ __html: body.html }} />
+          <div
+            ref={contentRef}
+            className={`article-content prose${speaking ? ' is-reading' : ''}`}
+            onClick={event => {
+              if (!speaking || !(event.target instanceof Element) || event.target.closest('a, button')) return;
+              const block = event.target.closest<HTMLElement>('h2, h3, p, li, blockquote');
+              if (!block || !contentRef.current?.contains(block)) return;
+              const index = getReadableBlocks().indexOf(block);
+              if (index >= 0) speakBlock(index, speed);
+            }}
+            dangerouslySetInnerHTML={{ __html: body.html }}
+          />
           <hr />
           <nav className="pn" aria-label="Previous and next articles">
             {data!.prevPost ? <Link to={`/blog/${data!.prevPost.slug}`}><small>Previous article</small><strong>{data!.prevPost.title}</strong></Link> : <span />}
