@@ -77,12 +77,16 @@ function Shell({ children }: { children: React.ReactNode }) {
     <header className="top"><div className="wrap bar">
       <Link to="/" className="logo" aria-label={`${SITE} home`}><span aria-hidden="true">▲</span> {SITE}</Link>
       <div className="header-actions">
+        <button className="mobile-search-trigger" type="button" onClick={openSpotlight} aria-label="Search articles (Ctrl+K)">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" /><path d="m13 13 4 4" /></svg>
+          <span>Ctrl+K</span>
+        </button>
         <Link to="/admin" className="team-sign-in header-team-sign-in"><ShieldIcon />{hasAdminToken ? 'Dashboard' : 'Team sign in'}</Link>
         <button className="theme-toggle" type="button" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
           <span className="theme-icon" aria-hidden="true">{theme === 'dark' ? '☀' : '☾'}</span>
           <span className="theme-toggle-label">{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
         </button>
-        <button className="burger" aria-expanded={open} aria-controls="menu" onClick={() => setOpen(!open)}>Menu</button>
+        <button className="burger" type="button" aria-label={open ? 'Close menu' : 'Open menu'} aria-expanded={open} aria-controls="menu" onClick={() => setOpen(!open)}><span aria-hidden="true">☰</span></button>
       </div>
       <nav id="menu" aria-label="Main" className={open ? 'open' : ''}>
         <NavLink to="/" end>Home</NavLink><NavLink to="/blog">All articles</NavLink>

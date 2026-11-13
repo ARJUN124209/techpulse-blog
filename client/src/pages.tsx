@@ -827,6 +827,12 @@ export function PostPage() {
         </aside>
 
         <article className="post-content">
+          {body.toc.length > 0 && <details className="mobile-toc">
+            <summary>In this article</summary>
+            <nav className="toc" aria-label="In this article">
+              <ul>{body.toc.map(item => <li key={item.id} className={'l' + item.lvl}><a className={activeHeading === item.id ? 'active' : ''} aria-current={activeHeading === item.id ? 'location' : undefined} href={`#${item.id}`}>{item.text}</a></li>)}</ul>
+            </nav>
+          </details>}
           <div
             ref={contentRef}
             className={`article-content prose${speaking ? ' is-reading' : ''}`}
