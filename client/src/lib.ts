@@ -4,15 +4,33 @@ export type Post = { _id: string; title: string; slug: string; excerpt: string; 
 export type Paged = { items: Post[]; total: number; pages: number; page: number };
 export const SITE = 'TechPulse';
 const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+const FALLBACK_API_BASE = 'https://techpulse-blog-f95t.onrender.com';
+const apiIsLocal = !API_BASE || /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/i.test(API_BASE);
 
 export async function api<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const h: Record<string, string> = {};
   if (!(opts.body instanceof FormData)) h['Content-Type'] = 'application/json';
   const t = localStorage.getItem('tok'); if (t) h.Authorization = 'Bearer ' + t;
-  const r = await fetch(API_BASE + '/api' + path, { ...opts, headers: h });
-  const d = await r.json().catch(() => ({}));
-  if (!r.ok) { if (r.status === 401 && t) { localStorage.clear(); } throw new Error(d.error || 'Request failed'); }
-  return d as T;
+  const request = async (base: string) => {
+    const r = await fetch(base + '/api' + path, { ...opts, headers: h });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      if (r.status === 401 && t) localStorage.clear();
+      const error = new Error(d.error || 'Request failed') as Error & { status: number };
+      error.status = r.status;
+      throw error;
+    }
+    return d as T;
+  };
+  try {
+    return await request(API_BASE);
+  } catch (error) {
+    const localUnavailable = error instanceof TypeError || (
+      error instanceof Error && 'status' in error && typeof error.status === 'number' && error.status >= 500
+    );
+    if (opts.method && opts.method.toUpperCase() !== 'GET' || !apiIsLocal || !localUnavailable) throw error;
+    return request(FALLBACK_API_BASE);
+  }
 }
 export function useFetch<T>(path: string) {
   const [data, setData] = useState<T | null>(null), [error, setError] = useState(''), [loading, setLoading] = useState(true);

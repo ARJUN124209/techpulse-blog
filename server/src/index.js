@@ -13,7 +13,12 @@ const uploads = path.join(__dir, '../uploads'); const dist = path.join(__dir, '.
 
 const app = express();
 app.use(cors({
-  origin: [process.env.CLIENT_ORIGIN, 'https://techpulse-blog-ashen.vercel.app'],
+  origin: [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    process.env.CLIENT_ORIGIN,
+    'https://techpulse-blog-ashen.vercel.app'
+  ].filter(Boolean),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));
