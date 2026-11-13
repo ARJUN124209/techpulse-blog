@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 export type Cat = { _id: string; name: string; slug: string };
-export type Post = { _id: string; title: string; slug: string; excerpt: string; content?: string; image?: string; readingTime?: number; category?: Cat; tags: string[]; author?: { name: string }; authorName?: string; status: string; publishAt: string; createdAt?: string; featured: boolean; views: number; seoTitle?: string; seoDescription?: string };
+export type Post = { _id: string; title: string; slug: string; excerpt: string; content?: string; image?: string; readingTime?: number; category?: Cat; tags: string[]; author?: { name: string }; authorName?: string; status: string; publishAt: string; createdAt?: string; updatedAt?: string; featured: boolean; views: number; seoTitle?: string; seoDescription?: string };
 export type Paged = { items: Post[]; total: number; pages: number; page: number };
 export const SITE = 'TechPulse';
 const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');

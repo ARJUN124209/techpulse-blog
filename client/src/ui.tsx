@@ -27,9 +27,22 @@ export function BookmarkButton({ article }: { article: SavedArticle }) {
 }
 
 export function Thumb({ p }: { p: CardPost }) {
-  return p.image
-    ? <img src={p.image} alt={`Cover image for ${p.title}`} loading="lazy" width={800} height={450} />
-    : <div className="ph" role="img" aria-label={`${p.category?.name ?? 'Article'} placeholder`}>{(p.category?.name ?? 'T')[0]}</div>;
+  return <ArticleCover p={p} />;
+}
+
+export function ArticleCover({ p, className }: { p: CardPost; className?: string }) {
+  const [failed, setFailed] = useState(false);
+  const category = p.category?.name ?? 'Article';
+  return p.image && !failed
+    ? <img className={className} src={p.image} alt={`Cover image for ${p.title}`} loading="lazy" width={1200} height={630} onError={() => setFailed(true)} />
+    : <div className={`ph cover-fallback${className ? ` ${className}` : ''}`} role="img" aria-label={`${category} cover illustration`}>
+      <svg viewBox="0 0 120 90" aria-hidden="true" focusable="false">
+        <rect x="10" y="12" width="100" height="66" rx="12" />
+        <path d="M22 62 44 40l14 14 12-11 28 24H22Z" />
+        <circle cx="80" cy="31" r="8" />
+      </svg>
+      <span>{category}</span>
+    </div>;
 }
 export function Card({ p }: { p: CardPost }) {
   const author = p.authorName || p.author?.name || 'Editorial Team';

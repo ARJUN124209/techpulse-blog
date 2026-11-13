@@ -86,7 +86,18 @@ function Shell({ children }: { children: React.ReactNode }) {
       </div>
       <nav id="menu" aria-label="Main" className={open ? 'open' : ''}>
         <NavLink to="/" end>Home</NavLink><NavLink to="/blog">All articles</NavLink>
-        <NavLink to="/saved" className="saved-nav">Saved <span className="saved-count">{savedArticles.length}</span></NavLink>
+        <details className="saved-drawer">
+          <summary className="saved-nav">Saved <span className="saved-count">{savedArticles.length}</span></summary>
+          <div className="saved-drawer-panel">
+            <strong>Reading list</strong>
+            {savedArticles.length
+              ? <ul>{savedArticles.slice(0, 5).map(article => <li key={article.slug}>
+                <Link to={`/blog/${article.slug}`} onClick={event => event.currentTarget.closest('details')?.removeAttribute('open')}>{article.title}</Link>
+              </li>)}</ul>
+              : <p>No saved stories yet. Bookmark an article to keep it here.</p>}
+            <Link className="saved-drawer-all" to="/saved" onClick={event => event.currentTarget.closest('details')?.removeAttribute('open')}>View all saved stories <span aria-hidden="true">&rarr;</span></Link>
+          </div>
+        </details>
         <form role="search" onSubmit={search}><label className="sr" htmlFor="q">Search articles</label><input id="q" name="q" type="search" placeholder="Search articles" maxLength={60} /><button>Search</button><button type="button" className="search-shortcut" onClick={openSpotlight} aria-label="Open spotlight search">Ctrl K</button></form>
         <Link to="/admin" className="team-sign-in mobile-team-sign-in"><ShieldIcon />{hasAdminToken ? 'Dashboard' : 'Team sign in'}</Link>
       </nav>

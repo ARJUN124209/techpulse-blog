@@ -51,7 +51,7 @@ app.get('/api/posts', wrap(async (req, res) => {
   const [items, total] = await Promise.all([list(Post.find(f).select('-content').sort('-publishAt').skip((page - 1) * limit).limit(limit)), Post.countDocuments(f)]);
   res.json({ items, total, page, pages: Math.ceil(total / limit) });
 }));
-app.get('/api/posts/featured', wrap(async (_, res) => res.json(await list(Post.find({ ...live(), featured: true }).select('-content').sort('-publishAt').limit(3)))));
+app.get('/api/posts/featured', wrap(async (_, res) => res.json(await list(Post.find({ ...live(), featured: true }).select('-content').sort('-publishAt').limit(5)))));
 const mostViewedPosts = wrap(async (_, res) => res.json(await list(Post.find(live()).select('-content').sort('-views').limit(5))));
 app.get('/api/posts/popular', mostViewedPosts);
 app.get('/api/posts/trending', mostViewedPosts);

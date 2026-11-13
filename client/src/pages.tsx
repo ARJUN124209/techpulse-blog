@@ -5,7 +5,7 @@ import { Helmet } from 'react-helmet-async';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { api, Cat, Paged, Post, SITE, fmt, useFetch } from './lib';
-import { BookmarkButton, Card, readingTime, State, Thumb } from './ui';
+import { ArticleCover, BookmarkButton, Card, readingTime, State, Thumb } from './ui';
 import { toSavedArticle, useSavedArticles } from './saved';
 
 function PageMetadata({ title, description, image, structuredData }: { title: string; description: string; image?: string; structuredData?: object }) {
@@ -127,19 +127,35 @@ export function SpotlightSearch({ onClose }: { onClose: () => void }) {
 }
 
 export function Home() {
-  const f = useFetch<Post[]>('/posts/featured'), l = useFetch<Paged>('/posts?limit=6'), trending = useFetch<Post[]>('/posts/trending');
+  const f = useFetch<Post[]>('/posts/featured'), l = useFetch<Paged>('/posts?limit=24'), trending = useFetch<Post[]>('/posts/trending');
   const c = useFetch<Cat[]>('/categories');
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
-  const [lead, ...rest] = f.data ?? [];
+  const [activeIndex, setActiveIndex] = useState(0);
+  const allPosts = l.data?.items ?? [];
+  const featuredPosts = useMemo(() => {
+    const unique = new Map<string, Post>();
+    [...(f.data ?? []), ...allPosts].forEach(post => unique.set(post.slug, post));
+    return [...unique.values()].slice(0, 5);
+  }, [f.data, allPosts]);
+  const activeFeaturedIndex = featuredPosts.length ? activeIndex % featuredPosts.length : 0;
+  const lead = featuredPosts[activeFeaturedIndex];
+  const categories = c.data ?? [];
+  const articleCount = (category: Cat) => allPosts.filter(post => post.category?.slug === category.slug).length;
+  const trendPosts = allPosts.filter(post => /artificial-intelligence|technology-innovation|industry-insights/.test(post.category?.slug ?? '')).slice(0, 3);
+  const platformPosts = allPosts.filter(post => /software-development|cybersecurity|cloud-computing|web-and-mobile/.test(post.category?.slug ?? '')).slice(0, 3);
+  const categoryLink = (name: string) => categories.find(category => category.name === name);
+  const previousFeatured = () => setActiveIndex(index => (index - 1 + featuredPosts.length) % featuredPosts.length);
+  const nextFeatured = () => setActiveIndex(index => (index + 1) % featuredPosts.length);
+
   return <>
-    <PageMetadata title={`${SITE} Blog: software, AI, cloud and security`} description="Articles, tutorials and company news from our engineering team." />
+    <PageMetadata title={`${SITE} Blog: Insights on growth, software, and engineering`} description="Insights on growth, software, and engineering from the TechPulse editorial team." />
     <div className="home">
       <section className="editorial-hero" aria-labelledby="editorial-title">
         <div className="editorial-hero-content">
-          <span className="editorial-eyebrow"><span aria-hidden="true">⚡</span> Engineering &amp; product insights</span>
-          <h1 id="editorial-title">Ideas for the <span>builders</span> shaping what’s next.</h1>
-          <p>Thoughtful perspectives on software, AI, cloud, and the craft of building better products.</p>
+          <span className="editorial-eyebrow"><span aria-hidden="true">✦</span> TechPulse engineering journal</span>
+          <h1 id="editorial-title">Insights on growth, software, and engineering</h1>
+          <p>Independent perspectives and practical guidance for the people building what comes next.</p>
           <form className="editorial-search" role="search" onSubmit={event => {
             event.preventDefault();
             const value = query.trim();
@@ -156,50 +172,97 @@ export function Home() {
           </nav>
         </div>
       </section>
-      <section aria-labelledby="feat">
-        <div className="section-heading"><div><span className="section-kicker">Editor’s pick</span><h2 id="feat" className="h">Featured story</h2></div></div>
-        <State loading={f.loading} error={f.error} empty={!f.loading && !f.error && !lead ? 'No featured articles yet.' : ''} />
-        {lead && <>
+      <section className="featured-showcase" aria-labelledby="feat">
+        <div className="section-heading"><div><span className="section-kicker">The editor’s selection</span><h2 id="feat" className="h">Featured stories</h2></div>
+          {featuredPosts.length > 1 && <div className="carousel-controls" role="group" aria-label="Featured story controls">
+            <button type="button" onClick={previousFeatured} aria-label="Previous featured story">←</button>
+            <span aria-live="polite">{String(activeFeaturedIndex + 1).padStart(2, '0')} / {String(featuredPosts.length).padStart(2, '0')}</span>
+            <button type="button" onClick={nextFeatured} aria-label="Next featured story">→</button>
+          </div>}
+        </div>
+        <State loading={f.loading || l.loading} error={f.error || l.error} empty={!f.loading && !l.loading && !featuredPosts.length ? 'No featured articles yet.' : ''} />
+        {lead && <div className="featured-showcase-grid">
           <article className="home-hero">
             <div className="home-hero-copy">
               <div className="feature-meta">
                 {lead.category && <Link className="tag" to={`/category/${lead.category.slug}`}>{lead.category.name}</Link>}
-                <span className="reading-time"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" /><path d="M8 4.5V8l2.2 1.4" /></svg>{lead.readingTime || readingTime(lead.content || lead.excerpt)} min read</span>
+                <span className="reading-time"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" /><path d="M8 4.5V8l2.2 1.4" /></svg>{lead.readingTime || readingTime(lead.content || lead.excerpt)} Mins Read</span>
               </div>
               <h2><Link to={`/blog/${lead.slug}`}>{lead.title}</Link></h2>
               <p>{lead.excerpt}</p>
               <div className="feature-byline">
                 <span className="author-avatar" aria-hidden="true">{(lead.authorName || lead.author?.name || 'Editorial Team').trim().charAt(0).toUpperCase()}</span>
-                <span><strong>{lead.authorName || lead.author?.name || 'Editorial Team'}</strong><small><time dateTime={lead.publishAt}>{fmt(lead.publishAt)}</time></small></span>
+                <span><strong>By {lead.authorName || lead.author?.name || 'Editorial Team'}</strong><small><time dateTime={lead.publishAt}>{fmt(lead.publishAt)}</time></small></span>
               </div>
-              <Link className="feature-link" to={`/blog/${lead.slug}`}>Read article <span aria-hidden="true">→</span></Link>
+              <Link className="feature-link" to={`/blog/${lead.slug}`}>Read story <span aria-hidden="true">→</span></Link>
             </div>
             <Link className="home-hero-media" to={`/blog/${lead.slug}`} aria-label={`Read ${lead.title}`}>
               <Thumb p={lead} />
             </Link>
           </article>
-          {rest.length > 0 && <div className="home-featured-more">{rest.map(post => <Card key={post._id} p={post} />)}</div>}
-        </>}
+          <ol className="featured-story-list" aria-label="Five featured stories">
+            {featuredPosts.map((post, index) => <li key={post._id || post.slug} className={index === activeFeaturedIndex ? 'active' : ''}>
+              <button type="button" onClick={() => setActiveIndex(index)} aria-pressed={index === activeFeaturedIndex}>
+                <span className="feature-list-metadata"><span className="feature-list-meta">{post.category?.name || 'Featured'}</span>
+                  <span className="reading-time">{post.readingTime || readingTime(post.content || post.excerpt)} Mins Read</span></span>
+                <strong>{post.title}</strong>
+                <small>By {post.authorName || post.author?.name || 'Editorial Team'} <span aria-hidden="true">•</span> {fmt(post.publishAt)}</small>
+              </button>
+              <Link to={`/blog/${post.slug}`} aria-label={`Read ${post.title}`} className="feature-list-link">↗</Link>
+            </li>)}
+          </ol>
+        </div>}
+      </section>
+
+      <section className="editorial-promos" aria-label="Explore editorial collections">
+        <article className="editorial-promo promo-systems">
+          <span className="section-kicker">From architecture to production</span>
+          <h2>Perspectives on scalable systems</h2>
+          <p>Explore thoughtful writing on the decisions that keep modern systems resilient as they grow.</p>
+          <div className="promo-categories">
+            {['Software Development', 'Cloud Computing'].map(name => {
+              const category = categoryLink(name);
+              return category && <Link key={category.slug} to={`/category/${category.slug}`}>{category.name}<span aria-hidden="true">↗</span></Link>;
+            })}
+          </div>
+          {categoryLink('Software Development') && <Link className="promo-read-more" to={`/category/${categoryLink('Software Development')!.slug}`}>Read more <span aria-hidden="true">→</span></Link>}
+        </article>
+        <article className="editorial-promo promo-ai">
+          <span className="section-kicker">Practical guides for builders</span>
+          <h2>Hands-on engineering tutorials &amp; AI implementation guides</h2>
+          <p>Build your skills with hands-on engineering tutorials and grounded guides to applied AI.</p>
+          <div className="promo-categories">
+            {['Artificial Intelligence & Machine Learning', 'Web and Mobile App Development'].map(name => {
+              const category = categoryLink(name);
+              return category && <Link key={category.slug} to={`/category/${category.slug}`}>{category.name}<span aria-hidden="true">↗</span></Link>;
+            })}
+          </div>
+          {categoryLink('Artificial Intelligence & Machine Learning') && <Link className="promo-read-more" to={`/category/${categoryLink('Artificial Intelligence & Machine Learning')!.slug}`}>Read more <span aria-hidden="true">→</span></Link>}
+        </article>
+      </section>
+
+      <section className="explore-categories" aria-labelledby="explore-heading">
+        <div className="section-heading"><div><span className="section-kicker">Find your next read</span><h2 id="explore-heading" className="h">Explore categories</h2></div>
+          <Link className="section-link" to="/blog">All stories <span aria-hidden="true">→</span></Link></div>
+        <State loading={c.loading} error={c.error} empty={!c.loading && !c.error && !categories.length ? 'No categories yet.' : ''} />
+        <div className="category-explore-grid">{categories.map(category => <Link className="category-explore-card" key={category._id} to={`/category/${category.slug}`}>
+          <span className="category-glyph" aria-hidden="true"><CategoryGlyph slug={category.slug} /></span>
+          <span className="category-explore-copy"><strong>{category.name}</strong><small>{articleCount(category)} {articleCount(category) === 1 ? 'story' : 'stories'}</small></span>
+          <span className="category-explore-arrow" aria-hidden="true">↗</span>
+        </Link>)}</div>
       </section>
 
       <div className="home-layout">
         <section className="home-latest" aria-labelledby="latest">
-          <div className="section-heading"><div><span className="section-kicker">Fresh perspectives</span><h2 id="latest" className="h">Latest articles</h2></div><Link className="section-link" to="/blog">View all <span aria-hidden="true">→</span></Link></div>
+          <div className="section-heading"><div><span className="section-kicker">Fresh perspectives</span><h2 id="latest" className="h">Latest stories</h2></div><Link className="section-link" to="/blog">View all <span aria-hidden="true">→</span></Link></div>
           <State loading={l.loading} error={l.error} empty={!l.loading && !l.error && !l.data?.items.length ? 'No articles published yet.' : ''} />
-          <div className="home-latest-grid">{l.data?.items.map(post => <Card key={post._id} p={post} />)}</div>
+          <div className="home-latest-grid">{l.data?.items.slice(0, 6).map(post => <Card key={post._id} p={post} />)}</div>
           <p><Link className="btn" to="/blog">Browse all articles</Link></p>
         </section>
 
         <aside className="home-sidebar">
-          <section aria-labelledby="home-categories">
-            <h2 id="home-categories" className="h">Categories</h2>
-            <State loading={c.loading} error={c.error} empty={!c.loading && !c.error && !c.data?.length ? 'No categories yet.' : ''} />
-            <ul className="home-category-list">{c.data?.map(category => <li key={category._id}>
-              <Link to={`/category/${category.slug}`}><span>{category.name}</span><span className="category-arrow" aria-hidden="true">→</span></Link>
-            </li>)}</ul>
-          </section>
           <section aria-labelledby="home-popular">
-            <h2 id="home-popular" className="h">Popular Articles</h2>
+            <h2 id="home-popular" className="h">Popular posts</h2>
             <State loading={trending.loading} error={trending.error} empty={!trending.loading && !trending.error && !trending.data?.length ? 'No popular articles yet.' : ''} />
             <ol className="home-trending-list">{trending.data?.map((post, index) => <li key={post._id || post.slug}>
               <span className="home-trending-rank" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
@@ -208,8 +271,37 @@ export function Home() {
           </section>
         </aside>
       </div>
+
+      <CuratedSection title="Trends & Insights" kicker="Ideas shaping the next chapter" posts={trendPosts} />
+      <CuratedSection title="Platform & Security Updates" kicker="Reliable foundations for modern teams" posts={platformPosts} />
     </div>
   </>;
+}
+
+function CategoryGlyph({ slug }: { slug: string }) {
+  const icon = slug.includes('artificial')
+    ? <><path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1m0-12.8-2.1 2.1m-8.6 8.6-2.1 2.1" /><circle cx="12" cy="12" r="4" /></>
+    : slug.includes('cyber')
+      ? <><path d="M12 3 19 6v5c0 4.5-3 7.7-7 10-4-2.3-7-5.5-7-10V6z" /><path d="m9 12 2 2 4-4" /></>
+      : slug.includes('cloud')
+        ? <><path d="M6 18h11a4 4 0 0 0 .4-8A6 6 0 0 0 6 9a4.5 4.5 0 0 0 0 9Z" /><path d="m9 13 3-3 3 3m-3-3v7" /></>
+        : slug.includes('mobile')
+          ? <><rect x="7" y="3" width="10" height="18" rx="2" /><path d="M10 6h4m-3 12h2" /></>
+          : slug.includes('technology')
+            ? <><path d="M12 3v18m-9-9h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4" /><circle cx="12" cy="12" r="4" /></>
+            : slug.includes('industry')
+              ? <><path d="M4 20V8l8-5 8 5v12M8 20v-6h8v6" /><path d="M8 9h.01M12 9h.01M16 9h.01" /></>
+              : <><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M8 8h8M8 12h8M8 16h4" /></>;
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">{icon}</svg>;
+}
+
+function CuratedSection({ title, kicker, posts }: { title: string; kicker: string; posts: Post[] }) {
+  if (!posts.length) return null;
+  return <section className="curated-section" aria-label={title}>
+    <div className="section-heading"><div><span className="section-kicker">{kicker}</span><h2 className="h">{title}</h2></div>
+      <Link className="section-link" to="/blog">Explore stories <span aria-hidden="true">→</span></Link></div>
+    <div className="curated-grid">{posts.map(post => <Card key={post._id || post.slug} p={post} />)}</div>
+  </section>;
 }
 
 export function Blog() {
@@ -314,12 +406,158 @@ function ArticleReactions({ slug }: { slug: string }) {
   </section>;
 }
 
+type DiscussionReply = { id: string; name: string; text: string; createdAt: string };
+type DiscussionComment = DiscussionReply & { replies: DiscussionReply[] };
+type DiscussionState = { comments: DiscussionComment[]; error: string };
+
+function seedDiscussion(): DiscussionComment[] {
+  const now = Date.now();
+  return [
+    {
+      id: 'editorial-reply-1',
+      name: 'Maya Chen',
+      text: 'The emphasis on making trade-offs explicit really resonates. We started recording the failure mode alongside each architecture decision, and our reviews became much more useful.',
+      createdAt: new Date(now - 3 * 86400000).toISOString(),
+      replies: []
+    },
+    {
+      id: 'editorial-reply-2',
+      name: 'Rohan Iyer',
+      text: 'Helpful, practical perspective. I would add that a small operational rehearsal often reveals more than another round of diagrams.',
+      createdAt: new Date(now - 86400000).toISOString(),
+      replies: []
+    }
+  ];
+}
+
+function isDiscussionReply(value: unknown): value is DiscussionReply {
+  if (!value || typeof value !== 'object') return false;
+  const reply = value as Record<string, unknown>;
+  return typeof reply.id === 'string' && typeof reply.name === 'string' &&
+    typeof reply.text === 'string' && typeof reply.createdAt === 'string';
+}
+
+function isDiscussionComment(value: unknown): value is DiscussionComment {
+  if (!isDiscussionReply(value)) return false;
+  const comment = value as DiscussionComment;
+  return Array.isArray(comment.replies) && comment.replies.every(isDiscussionReply);
+}
+
+function readDiscussion(slug: string): DiscussionState {
+  try {
+    const raw = localStorage.getItem(`techpulse:discussion:${slug}`);
+    if (!raw) return { comments: seedDiscussion(), error: '' };
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed) || !parsed.every(isDiscussionComment)) {
+      return { comments: seedDiscussion(), error: 'Saved discussion could not be read.' };
+    }
+    return { comments: parsed, error: '' };
+  } catch {
+    return { comments: seedDiscussion(), error: 'Saved discussion could not be read.' };
+  }
+}
+
+function Discussion({ slug }: { slug: string }) {
+  const [state, setState] = useState(() => readDiscussion(slug));
+  const [name, setName] = useState('');
+  const [text, setText] = useState('');
+  const [replyingTo, setReplyingTo] = useState('');
+  const [replyText, setReplyText] = useState('');
+  const [replyName, setReplyName] = useState('');
+
+  useEffect(() => {
+    try {
+      const key = `techpulse:discussion:${slug}`;
+      if (localStorage.getItem(key) === null) localStorage.setItem(key, JSON.stringify(state.comments));
+    } catch {
+      setState(previous => ({ ...previous, error: 'Could not save the discussion in this browser.' }));
+    }
+  }, [slug]);
+
+  const persist = (comments: DiscussionComment[]) => {
+    try {
+      localStorage.setItem(`techpulse:discussion:${slug}`, JSON.stringify(comments));
+      setState({ comments, error: '' });
+      return true;
+    } catch {
+      setState(previous => ({ ...previous, error: 'Could not save your comment. Check browser storage and try again.' }));
+      return false;
+    }
+  };
+
+  const submitComment = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const author = name.trim();
+    const body = text.trim();
+    if (!author || !body) return;
+    const comment: DiscussionComment = {
+      id: `comment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name: author,
+      text: body,
+      createdAt: new Date().toISOString(),
+      replies: []
+    };
+    if (persist([...state.comments, comment])) setText('');
+  };
+
+  const submitReply = (event: React.FormEvent<HTMLFormElement>, commentId: string) => {
+    event.preventDefault();
+    const author = replyName.trim();
+    const body = replyText.trim();
+    if (!author || !body) return;
+    const reply: DiscussionReply = {
+      id: `reply-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name: author,
+      text: body,
+      createdAt: new Date().toISOString()
+    };
+    const comments = state.comments.map(comment =>
+      comment.id === commentId ? { ...comment, replies: [...comment.replies, reply] } : comment
+    );
+    if (persist(comments)) {
+      setReplyText('');
+      setReplyingTo('');
+    }
+  };
+
+  return <section className="discussion-section" aria-labelledby="discussion-heading">
+    <div className="section-heading"><div><span className="section-kicker">Join the conversation</span><h2 id="discussion-heading" className="h">Discussion &amp; Replies</h2></div>
+      <span className="discussion-count">{state.comments.length} {state.comments.length === 1 ? 'comment' : 'comments'}</span>
+    </div>
+    <form className="discussion-form" onSubmit={submitComment}>
+      <label>Name<input name="name" autoComplete="name" maxLength={80} required value={name} onChange={event => setName(event.target.value)} placeholder="Your name" /></label>
+      <label>Comment<textarea name="comment" rows={4} maxLength={2000} required value={text} onChange={event => setText(event.target.value)} placeholder="Share a thoughtful response…" /></label>
+      <button type="submit" className="btn">Post comment</button>
+    </form>
+    {state.error && <p className="discussion-error" role="alert">{state.error}</p>}
+    <ol className="discussion-list">{state.comments.map(comment => <li className="discussion-comment" key={comment.id}>
+      <article>
+        <div className="discussion-byline"><strong>{comment.name}</strong><time dateTime={comment.createdAt}>{new Date(comment.createdAt).toLocaleString()}</time></div>
+        <p>{comment.text}</p>
+        <button type="button" className="discussion-reply-toggle" onClick={() => setReplyingTo(replyingTo === comment.id ? '' : comment.id)}>
+          {replyingTo === comment.id ? 'Cancel reply' : 'Reply'}
+        </button>
+      </article>
+      {comment.replies.length > 0 && <ol className="discussion-replies">{comment.replies.map(reply => <li key={reply.id}>
+        <div className="discussion-byline"><strong>{reply.name}</strong><time dateTime={reply.createdAt}>{new Date(reply.createdAt).toLocaleString()}</time></div>
+        <p>{reply.text}</p>
+      </li>)}</ol>}
+      {replyingTo === comment.id && <form className="discussion-reply-form" onSubmit={event => submitReply(event, comment.id)}>
+        <label>Name<input autoComplete="name" maxLength={80} required value={replyName} onChange={event => setReplyName(event.target.value)} placeholder="Your name" /></label>
+        <label>Reply<textarea rows={3} maxLength={1200} required value={replyText} onChange={event => setReplyText(event.target.value)} placeholder="Write a reply…" /></label>
+        <button type="submit">Post reply</button>
+      </form>}
+    </li>)}</ol>
+  </section>;
+}
+
 export function PostPage() {
   const { slug } = useParams();
   const { data, error, loading } = useFetch<{ post: Post; relatedPosts: Post[]; prevPost: { title: string; slug: string } | null; nextPost: { title: string; slug: string } | null }>(`/posts/${slug}`);
   const post = data?.post; const body = useMemo(() => renderArticleContent(post?.content || ''), [post]);
   const [progress, setProgress] = useState(0), [activeHeading, setActiveHeading] = useState(''), [speaking, setSpeaking] = useState(false), [paused, setPaused] = useState(false), [audioError, setAudioError] = useState('');
   const [speed, setSpeed] = useState<1 | 1.25 | 1.5>(1);
+  const [copyLinkStatus, setCopyLinkStatus] = useState('');
   const pageRef = useRef<HTMLDivElement>(null), contentRef = useRef<HTMLDivElement>(null), utteranceRef = useRef<SpeechSynthesisUtterance | null>(null), speechPositionRef = useRef(0);
   const here = typeof location !== 'undefined' ? location.href : '';
   const articleText = useMemo(() => {
@@ -476,6 +714,14 @@ export function PostPage() {
     setPaused(false);
     setAudioError('');
   };
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(here);
+      setCopyLinkStatus('Link copied');
+    } catch {
+      setCopyLinkStatus('Could not copy link');
+    }
+  };
   const cycleSpeed = () => {
     const rates = [1, 1.25, 1.5] as const;
     const next = rates[(rates.indexOf(speed) + 1) % rates.length];
@@ -496,37 +742,35 @@ export function PostPage() {
   if (loading || error) return <State loading={loading} error={error} />;
   if (!post) return null;
   const u = encodeURIComponent(here), t = encodeURIComponent(post.title);
-  const getReadingTime = (htmlContent: string) => {
-    if (!htmlContent) return 1;
-    const plainText = htmlContent.replace(/<[^>]+>/g, '');
-    const wordCount = plainText.trim().split(/\s+/).length;
-    return Math.ceil(wordCount / 200);
-  };
+  const readMins = post.readingTime || readingTime(post.content || post.excerpt);
   return <>
     <div className="reading-progress" aria-hidden="true"><span style={{ width: `${progress}%` }} /></div>
     <PageMetadata title={`${post.seoTitle || post.title} | ${SITE}`} description={post.seoDescription || post.excerpt || ''} image={post.image} structuredData={schemaData} />
     <div ref={pageRef} className="post-page">
       <header className="post-header">
-        {post.category && <Link className="tag" to={`/category/${post.category.slug}`}>{post.category.name}</Link>}
         <h1>{post.title}</h1>
-        <p className="meta">By {post.authorName || post.author?.name || 'Editorial Team'} · <time dateTime={post.publishAt}>{fmt(post.publishAt)}</time>
-          <span className="reading-controls"><span>{getReadingTime(post.content || '')} min read</span>
-            <span className="audio-player" role="group" aria-label="Listen to article">
-              <button type="button" onClick={toggleSpeech} disabled={!speechSupported || !speechText} aria-label={speaking && !paused ? 'Pause article audio' : 'Play article audio'}>{speaking && !paused ? 'Pause' : 'Play'}</button>
-              <button type="button" onClick={stopSpeech} disabled={!speechSupported || !speaking}>Stop</button>
-              <button type="button" onClick={cycleSpeed} disabled={!speechSupported} aria-label={`Playback speed ${speed}x; change speed`}>{speed}x</button>
-            </span>
-            <span className="sr" aria-live="polite">{audioError}</span>
+        <div className="post-meta-bar">
+          {post.category && <Link className="tag" to={`/category/${post.category.slug}`}>{post.category.name}</Link>}
+          <span>Published on: <time dateTime={post.publishAt}>{fmt(post.publishAt)}</time></span>
+          <span>Last Updated on: <time dateTime={post.updatedAt || post.publishAt}>{fmt(post.updatedAt || post.publishAt)}</time></span>
+          <span>{readMins} Mins Read</span>
+          <button type="button" className="copy-link-button" onClick={copyLink}>Copy link</button>
+          <span className="audio-player" role="group" aria-label="Listen to article">
+            <button type="button" onClick={toggleSpeech} disabled={!speechSupported || !speechText} aria-label={speaking && !paused ? 'Pause article audio' : 'Play article audio'}>{speaking && !paused ? 'Pause' : 'Listen'}</button>
+            <button type="button" onClick={stopSpeech} disabled={!speechSupported || !speaking}>Stop</button>
+            <button type="button" onClick={cycleSpeed} disabled={!speechSupported} aria-label={`Playback speed ${speed}x; change speed`}>{speed}x</button>
           </span>
-        </p>
+          <span className="sr" aria-live="polite">{audioError || copyLinkStatus}</span>
+        </div>
+        <p className="meta post-author-line">By {post.authorName || post.author?.name || 'Editorial Team'}</p>
       </header>
-      {post.image && <img className="post-cover" src={post.image} alt={post.title} width={1200} height={630} />}
+      <ArticleCover p={post} className="post-cover" />
 
       <div className="article-action-bar" role="group" aria-label="Share and save article">
         <span className="action-bar-label">Enjoying this story?</span>
         <a href={`https://www.linkedin.com/sharing/share-offsite/?url=${u}`} target="_blank" rel="noopener noreferrer">LinkedIn</a>
         <a href={`https://twitter.com/intent/tweet?url=${u}&text=${t}`} target="_blank" rel="noopener noreferrer">Share on X</a>
-        <button type="button" onClick={() => navigator.clipboard?.writeText(here)}>Copy link</button>
+        <button type="button" onClick={copyLink}>Copy link</button>
         <BookmarkButton article={toSavedArticle(post)} />
       </div>
 
@@ -553,6 +797,7 @@ export function PostPage() {
             <h2 id="rel" className="h">Related articles</h2>
             <div className="post-related-grid">{data!.relatedPosts.map(article => <Card key={article._id} p={article} />)}</div>
           </section>}
+          <Discussion key={`discussion-${post.slug}`} slug={post.slug} />
         </article>
       </div>
       <section className="newsletter-callout" aria-labelledby="newsletter-title">
