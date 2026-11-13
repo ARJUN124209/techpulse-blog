@@ -10,11 +10,19 @@ const ga = (import.meta.env.VITE_GA_MEASUREMENT_ID || import.meta.env.VITE_GA_ID
 const gaEnabled = Boolean(ga && /^G-[A-Z0-9]+$/.test(ga));
 if (ga && gaEnabled) ReactGA.initialize(ga, { gaOptions: { send_page_view: false } });
 
+function ShieldIcon() {
+  return <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+    <path d="M10 2.5 16 4.7v4.6c0 3.8-2.3 6.7-6 8.7-3.7-2-6-4.9-6-8.7V4.7z" />
+    <path d="m7.5 9.8 1.7 1.7 3.4-3.7" />
+  </svg>;
+}
+
 function Shell({ children }: { children: React.ReactNode }) {
   const { data: cats } = useFetch<Cat[]>('/categories'); const nav = useNavigate(); const { pathname } = useLocation();
   const { articles: savedArticles } = useSavedArticles();
   const [open, setOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
+  const [hasAdminToken] = useState(() => Boolean(localStorage.getItem('tok')));
   useEffect(() => { setOpen(false); window.scrollTo(0, 0); }, [pathname]);
   const search = (e: FormEvent<HTMLFormElement>) => { e.preventDefault(); const q = String(new FormData(e.currentTarget).get('q') || '').trim(); if (q) nav(`/blog?q=${encodeURIComponent(q)}`); };
   const toggleTheme = () => {
@@ -27,21 +35,26 @@ function Shell({ children }: { children: React.ReactNode }) {
     <a className="skip" href="#main">Skip to content</a>
     <header className="top"><div className="wrap bar">
       <Link to="/" className="logo" aria-label={`${SITE} home`}><span aria-hidden="true">▲</span> {SITE}</Link>
-      <button className="theme-toggle" type="button" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
-        {theme === 'dark' ? 'Light mode' : 'Dark mode'}
-      </button>
-      <button className="burger" aria-expanded={open} aria-controls="menu" onClick={() => setOpen(!open)}>Menu</button>
+      <div className="header-actions">
+        <Link to="/admin" className="team-sign-in header-team-sign-in"><ShieldIcon />{hasAdminToken ? 'Dashboard' : 'Team sign in'}</Link>
+        <button className="theme-toggle" type="button" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
+          <span className="theme-icon" aria-hidden="true">{theme === 'dark' ? '☀' : '☾'}</span>
+          <span className="theme-toggle-label">{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
+        </button>
+        <button className="burger" aria-expanded={open} aria-controls="menu" onClick={() => setOpen(!open)}>Menu</button>
+      </div>
       <nav id="menu" aria-label="Main" className={open ? 'open' : ''}>
         <NavLink to="/" end>Home</NavLink><NavLink to="/blog">All articles</NavLink>
         <NavLink to="/saved" className="saved-nav">Saved <span className="saved-count">{savedArticles.length}</span></NavLink>
         <form role="search" onSubmit={search}><label className="sr" htmlFor="q">Search articles</label><input id="q" name="q" type="search" placeholder="Search articles" maxLength={60} /><button>Search</button></form>
+        <Link to="/admin" className="team-sign-in mobile-team-sign-in"><ShieldIcon />{hasAdminToken ? 'Dashboard' : 'Team sign in'}</Link>
       </nav>
     </div>
     <nav className="wrap cats" aria-label="Categories">{cats?.map(c => <NavLink key={c._id} to={`/category/${c.slug}`}>{c.name}</NavLink>)}</nav></header>
     <main id="main" className="wrap">{children}</main>
     <footer><div className="wrap foot">
       <div><strong>{SITE}</strong><p>Practical writing on software, AI, cloud and security from our engineering team.</p><p>© {new Date().getFullYear()} {SITE} Technologies. 12 Example Street, Chennai, India.</p></div>
-      <div><strong>Useful links</strong><Link to="/blog">All articles</Link><a href="/sitemap.xml">Sitemap</a><Link to="/admin">Team sign in</Link></div>
+      <div><strong>Useful links</strong><Link to="/blog">All articles</Link><a href="/sitemap.xml">Sitemap</a><Link className="team-sign-in footer-team-sign-in" to="/admin"><ShieldIcon />Team sign in</Link></div>
       <div><strong>Follow us</strong><a href="https://x.com" rel="noopener noreferrer">X</a><a href="https://www.linkedin.com" rel="noopener noreferrer">LinkedIn</a><a href="https://github.com" rel="noopener noreferrer">GitHub</a></div>
     </div></footer></>);
 }
