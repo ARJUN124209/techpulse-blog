@@ -17,17 +17,23 @@ export function Admin() {
 function Login({ done }: { done: (u: User) => void }) {
   const [err, setErr] = useState(''), [busy, setBusy] = useState(false);
   const emailRef = useRef<HTMLInputElement>(null), passwordRef = useRef<HTMLInputElement>(null);
-  const demoEmail = import.meta.env.DEV ? import.meta.env.VITE_DEMO_ADMIN_EMAIL || '' : '';
-  const demoPassword = import.meta.env.DEV ? import.meta.env.VITE_DEMO_ADMIN_PASSWORD || '' : '';
-  const demoAvailable = Boolean(demoEmail && demoPassword);
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault(); setBusy(true); setErr(''); const f = new FormData(e.currentTarget);
     try { const r = await api<{ token: string; user: User }>('/auth/login', { method: 'POST', body: JSON.stringify({ email: f.get('email'), password: f.get('password') }) });
       localStorage.setItem('tok', r.token); localStorage.setItem('usr', JSON.stringify(r.user)); done(r.user); } catch (x) { setErr((x as Error).message); } finally { setBusy(false); }
   };
+  const openDemo = async () => {
+    setBusy(true); setErr('');
+    if (emailRef.current) emailRef.current.value = 'admin@techpulse.com';
+    if (passwordRef.current) passwordRef.current.value = '';
+    try {
+      const r = await api<{ token: string; user: User }>('/auth/demo-login', { method: 'POST' });
+      localStorage.setItem('tok', r.token); localStorage.setItem('usr', JSON.stringify(r.user)); done(r.user);
+    } catch (x) { setErr((x as Error).message); } finally { setBusy(false); }
+  };
   return <section className="admin-login-card" aria-labelledby="admin-login-title">
     <form className="login" onSubmit={submit}><h1 id="admin-login-title">Team sign in</h1>
-      <label>Email<input ref={emailRef} name="email" type="email" required autoComplete="username" /></label>
+      <label>Email<input ref={emailRef} name="email" type="email" defaultValue="admin@techpulse.com" required autoComplete="username" /></label>
       <label>Password<input ref={passwordRef} name="password" type="password" required autoComplete="current-password" /></label>
       {err && <p className="state err" role="alert">{err}</p>}
       <button className="btn admin-login-submit" type="submit" disabled={busy}>
@@ -37,15 +43,8 @@ function Login({ done }: { done: (u: User) => void }) {
       <p className="admin-login-back"><Link to="/">Back to the blog</Link></p>
     </form>
     <div className="demo-admin-fill">
-      <button className="admin-demo-fill-button" type="button" disabled={!demoAvailable} onClick={() => {
-        if (emailRef.current && passwordRef.current) {
-          emailRef.current.value = demoEmail;
-          passwordRef.current.value = demoPassword;
-        }
-      }}><span aria-hidden="true">⚡</span><span>Demo Admin Auto-Fill</span></button>
-      {!demoAvailable && <small>{import.meta.env.DEV
-        ? 'Set VITE_DEMO_ADMIN_EMAIL and VITE_DEMO_ADMIN_PASSWORD in your local client/.env to enable demo autofill.'
-        : 'Demo autofill is disabled on public builds so admin credentials stay private.'}</small>}
+      <button className="admin-demo-fill-button" type="button" disabled={busy} onClick={openDemo}><span aria-hidden="true">⚡</span><span>Demo Admin Auto-Fill</span></button>
+      <small>Opens a read-only demo with sample data. No admin credentials are used.</small>
     </div>
   </section>;
 }
@@ -56,11 +55,13 @@ function Dash({ user, out }: { user: User; out: () => void }) {
   const [now, setNow] = useState(Date.now);
   const load = useCallback(async () => {
     try {
-      const [p, c, a] = await Promise.all([
-        api<Post[]>('/admin/posts'),
-        api<Cat[]>('/categories'),
-        user.role === 'admin' ? api<Author[]>('/admin/authors') : Promise.resolve([])
-      ]);
+      const [p, c, a] = user.role === 'demo'
+        ? await api<{ posts: Post[]; categories: Cat[] }>('/demo/dashboard').then(data => [data.posts, data.categories, [] as Author[]] as const)
+        : await Promise.all([
+          api<Post[]>('/admin/posts'),
+          api<Cat[]>('/categories'),
+          user.role === 'admin' ? api<Author[]>('/admin/authors') : Promise.resolve([])
+        ]);
       setPosts(p); setCats(c); setAuthors(a);
     }
     catch (e) { setErr((e as Error).message); if (!localStorage.getItem('tok')) out(); } finally { setLoading(false); }
@@ -94,33 +95,34 @@ function Dash({ user, out }: { user: User; out: () => void }) {
       <div className="admin-kpi"><span>Total categories</span><strong>{loading ? '—' : cats.length}</strong></div>
     </section>
     <section className="admin-post-tools" aria-label="Post actions and filters">
-      <button className="btn admin-new-post" disabled={loading} onClick={() => setEdit('new')}>New post</button>
+      {user.role !== 'demo' && <button className="btn admin-new-post" disabled={loading} onClick={() => setEdit('new')}>New post</button>}
       {!loading && posts.length > 0 && <>
         <div className="admin-filter-pills" role="group" aria-label="Post status filters">
-          {([
-            ['all', 'All'], ['published', 'Published'], ['drafts', 'Drafts'], ['scheduled', 'Scheduled'], ['featured', 'Featured']
-          ] as const).map(([value, label]) => <button key={value} type="button" className={filter === value ? 'active' : ''} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>)}
+          {(user.role === 'demo'
+            ? ([['all', 'All'], ['published', 'Published'], ['featured', 'Featured']] as const)
+            : ([['all', 'All'], ['published', 'Published'], ['drafts', 'Drafts'], ['scheduled', 'Scheduled'], ['featured', 'Featured']] as const)
+          ).map(([value, label]) => <button key={value} type="button" className={filter === value ? 'active' : ''} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>)}
         </div>
         <label className="admin-post-search"><span>Quick search</span><input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Title, category, tag…" /></label>
       </>}
     </section>
     <div aria-live="polite">{msg && <p className="state ok">{msg}</p>}{err && <p className="state err" role="alert">{err}</p>}</div>
     {loading ? <p className="state" role="status">Loading…</p> : !posts.length ? <p className="state">No posts yet. Create your first post.</p> : !filteredPosts.length ? <p className="state">No posts match these filters.</p> :
-      <div className="admin-table-card scroll"><table><thead><tr><th>Title</th><th>Status</th><th>Category</th><th className="admin-date">Date</th><th className="admin-featured-column">Featured</th><th>Actions</th></tr></thead><tbody>
+      <div className="admin-table-card scroll"><table><thead><tr><th>Title</th><th>Status</th><th>Category</th><th className="admin-date">Date</th><th className="admin-featured-column">Featured</th>{user.role !== 'demo' && <th>Actions</th>}</tr></thead><tbody>
         {filteredPosts.map(p => <tr key={p._id}><td>{p.title}</td><td><span className={`admin-status-pill ${state(p).toLowerCase()}`}>{state(p)}</span></td><td>{p.category?.name}</td><td className="admin-date">{fmt(p.publishAt)}</td>
-          <td className="admin-featured-column"><input type="checkbox" aria-label={`Feature ${p.title}`} checked={p.featured} onChange={e => run(() => api(`/admin/posts/${p._id}`, { method: 'PUT', body: JSON.stringify({ featured: e.target.checked }) }), 'Updated')} /></td>
-          <td><div className="admin-row-actions"><button onClick={() => setEdit(p._id)}>Edit</button><button onClick={() => run(() => api(`/admin/posts/${p._id}`, { method: 'PUT', body: JSON.stringify({ status: p.status === 'draft' ? 'published' : 'draft' }) }), p.status === 'draft' ? 'Published' : 'Moved to drafts')}>{p.status === 'draft' ? 'Publish' : 'Unpublish'}</button>
-            {user.role === 'admin' && <button className="admin-delete-button" onClick={() => confirm(`Delete “${p.title}”?`) && run(() => api(`/admin/posts/${p._id}`, { method: 'DELETE' }), 'Deleted')}>Delete</button>}</div></td></tr>)}</tbody></table></div>}
-    <Cats cats={cats} admin={user.role === 'admin'} run={run} />
+          <td className="admin-featured-column">{user.role === 'demo' ? (p.featured ? 'Yes' : 'No') : <input type="checkbox" aria-label={`Feature ${p.title}`} checked={p.featured} onChange={e => run(() => api(`/admin/posts/${p._id}`, { method: 'PUT', body: JSON.stringify({ featured: e.target.checked }) }), 'Updated')} />}</td>
+          {user.role !== 'demo' && <td><div className="admin-row-actions"><button onClick={() => setEdit(p._id)}>Edit</button><button onClick={() => run(() => api(`/admin/posts/${p._id}`, { method: 'PUT', body: JSON.stringify({ status: p.status === 'draft' ? 'published' : 'draft' }) }), p.status === 'draft' ? 'Published' : 'Moved to drafts')}>{p.status === 'draft' ? 'Publish' : 'Unpublish'}</button>
+            {user.role === 'admin' && <button className="admin-delete-button" onClick={() => confirm(`Delete “${p.title}”?`) && run(() => api(`/admin/posts/${p._id}`, { method: 'DELETE' }), 'Deleted')}>Delete</button>}</div></td>}</tr>)}</tbody></table></div>}
+    <Cats cats={cats} admin={user.role === 'admin'} run={run} readOnly={user.role === 'demo'} />
     {user.role === 'admin' && <Authors authors={authors} onCreated={load} />}</>);
 }
-function Cats({ cats, admin, run }: { cats: Cat[]; admin: boolean; run: (f: () => Promise<unknown>, ok: string) => void }) {
+function Cats({ cats, admin, run, readOnly = false }: { cats: Cat[]; admin: boolean; run: (f: () => Promise<unknown>, ok: string) => void; readOnly?: boolean }) {
   const ref = useRef<HTMLInputElement>(null);
   return (<section aria-labelledby="cm"><h2 id="cm">Categories</h2>
-    <form className="row" onSubmit={e => { e.preventDefault(); const name = ref.current!.value.trim(); if (name) { run(() => api('/admin/categories', { method: 'POST', body: JSON.stringify({ name }) }), 'Category added'); ref.current!.value = ''; } }}>
-      <label className="sr" htmlFor="nc">New category name</label><input id="nc" ref={ref} maxLength={60} placeholder="New category" /><button>Add category</button></form>
-    <ul className="chips">{cats.map(c => <li key={c._id}>{c.name} <button aria-label={`Rename ${c.name}`} onClick={() => { const n = prompt('New name', c.name); if (n) run(() => api(`/admin/categories/${c._id}`, { method: 'PUT', body: JSON.stringify({ name: n }) }), 'Category renamed'); }}>Rename</button>
-      {admin && <button aria-label={`Delete ${c.name}`} onClick={() => confirm(`Delete ${c.name}?`) && run(() => api(`/admin/categories/${c._id}`, { method: 'DELETE' }), 'Category deleted')}>Delete</button>}</li>)}</ul></section>);
+    {!readOnly && <form className="row" onSubmit={e => { e.preventDefault(); const name = ref.current!.value.trim(); if (name) { run(() => api('/admin/categories', { method: 'POST', body: JSON.stringify({ name }) }), 'Category added'); ref.current!.value = ''; } }}>
+      <label className="sr" htmlFor="nc">New category name</label><input id="nc" ref={ref} maxLength={60} placeholder="New category" /><button>Add category</button></form>}
+    <ul className="chips">{cats.map(c => <li key={c._id}>{c.name}{!readOnly && <> <button aria-label={`Rename ${c.name}`} onClick={() => { const n = prompt('New name', c.name); if (n) run(() => api(`/admin/categories/${c._id}`, { method: 'PUT', body: JSON.stringify({ name: n }) }), 'Category renamed'); }}>Rename</button>
+      {admin && <button aria-label={`Delete ${c.name}`} onClick={() => confirm(`Delete ${c.name}?`) && run(() => api(`/admin/categories/${c._id}`, { method: 'DELETE' }), 'Category deleted')}>Delete</button>}</>}</li>)}</ul></section>);
 }
 function Authors({ authors, onCreated }: { authors: Author[]; onCreated: () => Promise<void> }) {
   const [err, setErr] = useState(''), [busy, setBusy] = useState(false);

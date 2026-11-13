@@ -5,6 +5,7 @@ import path from 'path'; import fs from 'fs'; import { fileURLToPath } from 'url
 import { User, Category, Post, slugify } from './models.js';
 import articleRoutes from './routes/articleRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
+import { demoCategories, demoPosts } from './demo-data.js';
 
 const { JWT_SECRET, MONGODB_URI = 'mongodb://127.0.0.1:27017/techblog', PORT = 5000, SITE_URL = 'http://localhost:5173' } = process.env;
 if (!JWT_SECRET || JWT_SECRET.length < 32) { console.error('Set JWT_SECRET (32+ chars) in server/.env'); process.exit(1); }
@@ -76,10 +77,20 @@ app.get('/sitemap.xml', sitemap);
 // ---------- Auth ----------
 app.post('/api/auth/login', rateLimit({ windowMs: 15 * 60e3, max: 10, message: { error: 'Too many attempts. Try again in 15 minutes.' } }), wrap(async (req, res) => {
   const { email, password } = req.body || {};
-  const u = typeof email === 'string' && typeof password === 'string' ? await User.findOne({ email: email.toLowerCase() }).select('+passwordHash') : null;
+  const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  const adminAliases = [...new Set([process.env.ADMIN_EMAIL, 'admin@techpulse.com', 'admin@techpluse.com'].filter(Boolean).map(value => value.trim().toLowerCase()))];
+  let u = normalizedEmail && typeof password === 'string' ? await User.findOne({ email: normalizedEmail }).select('+passwordHash') : null;
+  if (!u && typeof password === 'string' && adminAliases.includes(normalizedEmail)) {
+    u = await User.findOne({ role: 'admin', email: { $in: adminAliases } }).select('+passwordHash');
+  }
   if (!u || !(await bcrypt.compare(password, u.passwordHash))) return res.status(401).json({ error: 'Incorrect email or password' });
   res.json({ token: jwt.sign({ id: u.id, role: u.role, name: u.name }, JWT_SECRET, { expiresIn: '8h' }), user: { id: u.id, name: u.name, role: u.role } });
 }));
+app.post('/api/auth/demo-login', rateLimit({ windowMs: 15 * 60e3, max: 30, message: { error: 'Too many demo requests. Try again in 15 minutes.' } }), (_, res) => {
+  const user = { id: 'public-demo', name: 'Read-only demo', role: 'demo' };
+  res.json({ token: jwt.sign(user, JWT_SECRET, { expiresIn: '1h' }), user });
+});
+app.get('/api/demo/dashboard', auth('demo'), (_, res) => res.json({ posts: demoPosts, categories: demoCategories }));
 
 // ---------- Admin API (editor + admin) ----------
 const admin = express.Router(); admin.use(auth('admin', 'editor')); app.use('/api/admin', admin);
